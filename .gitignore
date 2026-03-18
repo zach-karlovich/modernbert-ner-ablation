@@ -77,6 +77,12 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.executed.ipynb
+**/*executed*.ipynb
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IPython
 profile_default/
@@ -205,3 +211,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project data
+data/
