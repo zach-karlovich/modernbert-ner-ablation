@@ -1,4 +1,4 @@
-# ds6050-project
+# moderbert-ner-ablation
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
