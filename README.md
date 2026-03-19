@@ -2,7 +2,7 @@
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
-Overleaf document: [DS6050_26S_G2-ModernBERT_NER](https://www.overleaf.com/project/6996373c44b841199bc3c599)
+Overleaf document: [ds6050-project](https://www.overleaf.com/project/6996373c44b841199bc3c599)
 
 ## Abstract
 
