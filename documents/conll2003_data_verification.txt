@@ -1,0 +1,14 @@
+CoNLL-2003 verification (data/conll2003/):
+  eng.train: 14987 sentences (expected 14987) PASS
+  eng.testa: 3466 sentences (expected 3466) PASS
+  eng.testb: 3684 sentences (expected 3684) PASS
+
+Entity distribution:
+  train: PER=11128 ORG=10025 LOC=8297 MISC=4593
+  validation: PER=3149 ORG=2092 LOC=2094 MISC=1268
+  test: PER=2773 ORG=2496 LOC=1925 MISC=918
+
+DOCSTART:
+  eng.train: 946 (expected 946)
+  eng.testa: 216 (expected 216)
+  eng.testb: 231 (expected 231)
