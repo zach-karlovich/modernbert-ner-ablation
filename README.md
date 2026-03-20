@@ -1,8 +1,8 @@
-# moderbert-ner-ablation
+# ModernBERT NER Ablation
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
-Overleaf document: [ds6050-project](https://www.overleaf.com/project/6996373c44b841199bc3c599)
+Overleaf document: [moderbert-ner-ablation](https://www.overleaf.com/project/6996373c44b841199bc3c599)
 
 ## Abstract
 
@@ -34,6 +34,13 @@ ModernBERT with document-level context and a CRF decoding head, evaluated agains
 
 ```bash
 uv python install 3.14
+uv sync
+```
+
+### UVA HPC Rivanna Setup
+
+```bash
+module load uv/0.9.9
 uv sync
 ```
 
