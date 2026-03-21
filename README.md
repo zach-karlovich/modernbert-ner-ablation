@@ -22,6 +22,14 @@ This yields four configurations:
 
 Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/LOC/MISC.
 
+## Results
+
+Entity-level F1 on CoNLL-2003 test set. Mean ± std over 3 seeds (21, 42, 63).
+
+| Model | Micro F1 | Macro F1 |
+|-------|----------|----------|
+| BERT-base-cased (sentence-level, no CRF) | 0.9138 ± 0.002 | 0.8994 ± 0.002 |
+
 ## Planned Final Model
 
 ModernBERT with document-level context and a CRF decoding head, evaluated against the sentence-level ModernBERT baseline and single-factor variants.
@@ -57,6 +65,7 @@ If you use Kaggle data access, configure Kaggle API credentials locally and do n
 - `notebooks/`: experiment notebooks and ablations
 - `references/`: bibliography sources
 - `documents/`: milestone and supporting course documents
+- `results/`: training run outputs
 
 ## Training
 
