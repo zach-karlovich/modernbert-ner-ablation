@@ -107,29 +107,34 @@ class ConllDataset(Dataset):
         }
 
 
-def collate_fn(batch):
+def make_collate_fn(pad_token_id):
     """Pad to max len in batch. assignment 3 style."""
-    max_len = max(item["input_ids"].size(0) for item in batch)
-    pad_id = 0
-    input_ids_list = []
-    attention_mask_list = []
-    labels_list = []
-    for item in batch:
-        pad_len = max_len - item["input_ids"].size(0)
-        input_ids_list.append(
-            torch.nn.functional.pad(item["input_ids"], (0, pad_len), value=pad_id)
+
+    def collate_fn(batch):
+        max_len = max(item["input_ids"].size(0) for item in batch)
+        # ModernBERT pad_token_id != 0; use the tokenizer's actual pad token
+        pad_id = pad_token_id
+        input_ids_list = []
+        attention_mask_list = []
+        labels_list = []
+        for item in batch:
+            pad_len = max_len - item["input_ids"].size(0)
+            input_ids_list.append(
+                torch.nn.functional.pad(item["input_ids"], (0, pad_len), value=pad_id)
+            )
+            attention_mask_list.append(
+                torch.nn.functional.pad(item["attention_mask"], (0, pad_len), value=0)
+            )
+            labels_list.append(
+                torch.nn.functional.pad(item["labels"], (0, pad_len), value=-100)
+            )
+        return (
+            torch.stack(input_ids_list),
+            torch.stack(attention_mask_list),
+            torch.stack(labels_list),
         )
-        attention_mask_list.append(
-            torch.nn.functional.pad(item["attention_mask"], (0, pad_len), value=0)
-        )
-        labels_list.append(
-            torch.nn.functional.pad(item["labels"], (0, pad_len), value=-100)
-        )
-    return (
-        torch.stack(input_ids_list),
-        torch.stack(attention_mask_list),
-        torch.stack(labels_list),
-    )
+
+    return collate_fn
 
 
 def train_epoch(model, dataloader, optimizer, scheduler, device, clip):
@@ -261,6 +266,7 @@ if __name__ == "__main__":
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
     BATCH_SIZE = 16  # not changed
+    collate_fn = make_collate_fn(tokenizer.pad_token_id)
     train_loader = DataLoader(
         train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     )
@@ -271,7 +277,7 @@ if __name__ == "__main__":
         test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
     )
 
-    lr = 4e-5  # tried: 2e-5, 4e-5
+    lr = 2e-5  # tried: 2e-5, 4e-5
     N_EPOCHS = 5  # tried: 5
     CLIP = 1  # tried: 1
     reports = []
@@ -291,7 +297,7 @@ if __name__ == "__main__":
         total_steps = len(train_loader) * N_EPOCHS
         warmup_steps = int(0.1 * total_steps)  # tried: 0.1
         optimizer = optim.AdamW(
-            model.parameters(), lr=lr, weight_decay=8e-6
+            model.parameters(), lr=lr, weight_decay=0.01
         )  # tried: 0.01, 8e-6
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
