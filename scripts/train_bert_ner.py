@@ -263,7 +263,7 @@ if __name__ == "__main__":
     reports = []
 
     for run, seed in enumerate(SEEDS, 1):
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Run {run}/3 — Seed {seed}")
         print("=" * 50)
         set_seeds_to(seed)
