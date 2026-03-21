@@ -11,7 +11,11 @@ import torch.optim as optim
 from seqeval.metrics import classification_report, f1_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import (
+    AutoModelForTokenClassification,
+    AutoTokenizer,
+    get_linear_schedule_with_warmup,
+)
 
 
 def parse_conll(filepath):
@@ -126,7 +130,7 @@ def collate_fn(batch):
     )
 
 
-def train_epoch(model, dataloader, optimizer, device, clip):
+def train_epoch(model, dataloader, optimizer, scheduler, device, clip):
     """Modeled after assignment 2 runner.train_epoch. BERT returns loss directly."""
     model.train()
     running_loss = 0.0
@@ -143,6 +147,7 @@ def train_epoch(model, dataloader, optimizer, device, clip):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
+        scheduler.step()
         running_loss += loss.item()
     return running_loss / len(dataloader)
 
@@ -202,9 +207,28 @@ def get_predictions(model, dataloader, device, id2label):
     return all_preds, all_true
 
 
+def aggregate_reports(reports):
+    metric_keys = ["precision", "recall", "f1-score"]
+    rows = []
+    for key in reports[0]:
+        if key == "accuracy":
+            continue
+        row = {"": key}
+        support = reports[0][key].get("support", np.nan)
+        if not np.isnan(support):
+            row["support"] = int(support)
+        for m in metric_keys:
+            if m in reports[0][key]:
+                vals = [r[key][m] for r in reports]
+                mean_val = np.mean(vals)
+                std_val = np.std(vals)
+                row[m] = f"{mean_val:.4f} ± {std_val:.4f}"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 if __name__ == "__main__":
-    SEED = 21
-    set_seeds_to(SEED)
+    SEEDS = [21, 42, 63]
     torch.backends.cudnn.deterministic = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -218,15 +242,10 @@ if __name__ == "__main__":
     print(f"Test: {len(test_sentences)} sentences")
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    model = AutoModelForTokenClassification.from_pretrained(
-        "bert-base-cased", num_labels=len(label_list)
-    ).to(device)
-
     train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
     dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
-    # TUNEABLE PARAMETERS
     BATCH_SIZE = 16
     train_loader = DataLoader(
         train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
@@ -240,22 +259,46 @@ if __name__ == "__main__":
 
     lr = 2e-5
     N_EPOCHS = 5
-    CLIP = 1  # assignment 3 gradient clipping
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)  # a2
+    CLIP = 1
+    reports = []
 
-    for epoch in range(N_EPOCHS):
-        print(f"\nEpoch {epoch + 1}/{N_EPOCHS}")
-        print("-" * 30)
+    for run, seed in enumerate(SEEDS, 1):
+        print(f"\n{'='*50}")
+        print(f"Run {run}/3 — Seed {seed}")
+        print("=" * 50)
+        set_seeds_to(seed)
 
-        train_loss = train_epoch(model, train_loader, optimizer, device, CLIP)
-        val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
-        print(f"Train Loss: {train_loss:.3f}")
-        print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
-        scheduler.step()
+        model = AutoModelForTokenClassification.from_pretrained(
+            "bert-base-cased",
+            num_labels=len(label_list),
+            id2label=id2label,
+            label2id=label2id,
+        ).to(device)
+        total_steps = len(train_loader) * N_EPOCHS
+        warmup_steps = int(0.1 * total_steps)
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=total_steps,
+        )
 
-    all_preds, all_true = get_predictions(model, test_loader, device, id2label)
-    report = classification_report(all_true, all_preds, output_dict=True)
-    df = pd.DataFrame(report).T.round(4)
-    print("\n=== Test Set Evaluation (detailed) ===")
+        for epoch in range(N_EPOCHS):
+            print(f"\nEpoch {epoch + 1}/{N_EPOCHS}")
+            print("-" * 30)
+            train_loss = train_epoch(
+                model, train_loader, optimizer, scheduler, device, CLIP
+            )
+            val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
+            print(f"Train Loss: {train_loss:.3f}")
+            print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+
+        all_preds, all_true = get_predictions(model, test_loader, device, id2label)
+        report = classification_report(all_true, all_preds, output_dict=True)
+        reports.append(report)
+        del model
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+    df = aggregate_reports(reports).set_index("")
+    print("\n=== Test Set Evaluation (3 seeds: 21, 42, 63) — mean ± std ===")
     print(df.to_string())
