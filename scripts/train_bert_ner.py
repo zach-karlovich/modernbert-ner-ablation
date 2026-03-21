@@ -208,7 +208,7 @@ if __name__ == "__main__":
     )
 
     lr = 2e-5
-    N_EPOCHS = 10
+    N_EPOCHS = 3
     # N_EPOCHS = 1
     CLIP = 1  # assignment 3 gradient clipping
     optimizer = optim.Adam(model.parameters(), lr=lr)
