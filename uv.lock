@@ -468,6 +468,7 @@ dependencies = [
     { name = "pillow" },
     { name = "scikit-learn" },
     { name = "seaborn" },
+    { name = "seqeval" },
     { name = "torch" },
     { name = "torchaudio" },
     { name = "torchvision" },
@@ -492,6 +493,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "seqeval", specifier = ">=1.2.2" },
     { name = "torch", specifier = ">=2.10.0" },
     { name = "torchaudio", specifier = ">=2.10.0" },
     { name = "torchvision", specifier = ">=0.25.0" },
@@ -2234,6 +2236,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/c5/f0/184b4b5f8d00f2a92
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/78/504fdd027da3b84ff1aecd9f6957e65f35134534ccc6da8628eb71e76d3f/send2trash-2.1.0-py3-none-any.whl", hash = "sha256:0da2f112e6d6bb22de6aa6daa7e144831a4febf2a87261451c4ad849fe9a873c", size = 17610, upload-time = "2026-01-14T06:27:35.218Z" },
 ]
+
+[[package]]
+name = "seqeval"
+version = "1.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/2d/233c79d5b4e5ab1dbf111242299153f3caddddbb691219f363ad55ce783d/seqeval-1.2.2.tar.gz", hash = "sha256:f28e97c3ab96d6fcd32b648f6438ff2e09cfba87f05939da9b3970713ec56e6f", size = 43605, upload-time = "2020-10-24T00:24:54.926Z" }
 
 [[package]]
 name = "setuptools"
