@@ -1,12 +1,14 @@
-"""Fine-tune bert-base-cased on CoNLL-2003 NER. Patterns from deep learning coursework assignment 2 and 3."""
+"""Fine-tune bert-base-cased on CoNLL-2003 NER. Patterns from deep learning coursework assignment 2 and 3.
+Classification report logic copied from notebooks/00bert_baseline.ipynb."""
 
 import random
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.optim as optim
-from seqeval.metrics import f1_score
+from seqeval.metrics import classification_report, f1_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoModelForTokenClassification, AutoTokenizer
@@ -176,8 +178,32 @@ def evaluate(model, dataloader, device, id2label):
     return epoch_loss, f1
 
 
+def get_predictions(model, dataloader, device, id2label):
+    model.eval()
+    all_preds = []
+    all_true = []
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Evaluating"):
+            input_ids, attention_mask, labels = batch
+            input_ids = input_ids.to(device)
+            attention_mask = attention_mask.to(device)
+            labels = labels.to(device)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            preds = outputs.logits.argmax(-1)
+            for i in range(labels.size(0)):
+                pred_seq = []
+                label_seq = []
+                for j in range(labels.size(1)):
+                    if labels[i, j].item() != -100:
+                        pred_seq.append(id2label[preds[i, j].item()])
+                        label_seq.append(id2label[labels[i, j].item()])
+                all_preds.append(pred_seq)
+                all_true.append(label_seq)
+    return all_preds, all_true
+
+
 if __name__ == "__main__":
-    SEED = 1234
+    SEED = 21
     set_seeds_to(SEED)
     torch.backends.cudnn.deterministic = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -185,10 +211,11 @@ if __name__ == "__main__":
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
     train_sentences = parse_conll(data_dir / "eng.train")
-    # eng.testa = dev, eng.testb = test
     dev_sentences = parse_conll(data_dir / "eng.testa")
+    test_sentences = parse_conll(data_dir / "eng.testb")
     print(f"Train: {len(train_sentences)} sentences")
     print(f"Dev: {len(dev_sentences)} sentences")
+    print(f"Test: {len(test_sentences)} sentences")
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
     model = AutoModelForTokenClassification.from_pretrained(
@@ -197,6 +224,7 @@ if __name__ == "__main__":
 
     train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
     dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
+    test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
     # TUNEABLE PARAMETERS
     BATCH_SIZE = 16
@@ -206,10 +234,12 @@ if __name__ == "__main__":
     dev_loader = DataLoader(
         dev_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
     )
+    test_loader = DataLoader(
+        test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
+    )
 
     lr = 2e-5
-    N_EPOCHS = 3
-    # N_EPOCHS = 1
+    N_EPOCHS = 5
     CLIP = 1  # assignment 3 gradient clipping
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)  # a2
@@ -223,3 +253,9 @@ if __name__ == "__main__":
         print(f"Train Loss: {train_loss:.3f}")
         print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
         scheduler.step()
+
+    all_preds, all_true = get_predictions(model, test_loader, device, id2label)
+    report = classification_report(all_true, all_preds, output_dict=True)
+    df = pd.DataFrame(report).T.round(4)
+    print("\n=== Test Set Evaluation (detailed) ===")
+    print(df.to_string())
