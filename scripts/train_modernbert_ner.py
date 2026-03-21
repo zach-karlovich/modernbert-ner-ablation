@@ -88,6 +88,9 @@ class ConllDataset(Dataset):
             truncation=True,
             max_length=self.max_length,
         )
+        # Subword alignment (first-subtoken strategy): ModernBERT uses BPE, not WordPiece.
+        # word_ids() maps each token to its source word; the first token of each word
+        # gets the label, continuation subwords get -100. Tokenizer-agnostic.
         word_ids = encoding.word_ids()
         labels = []
         for i in range(len(word_ids)):
@@ -243,11 +246,21 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(
         "answerdotai/ModernBERT-base"
     )  # BERT: bert-base-cased
+
+    VERIFY_ALIGNMENT = True
+    if VERIFY_ALIGNMENT:
+        test_words = ["Enter", "Sandman", "at", "Lane", "Stadium", "is", "incredible"]
+        encoding = tokenizer(test_words, is_split_into_words=True, return_tensors="pt")
+        word_ids = encoding.word_ids()
+        tokens = tokenizer.convert_ids_to_tokens(encoding["input_ids"][0])
+        for i, (tok, wid) in enumerate(zip(tokens, word_ids)):
+            print(f"{i}: {tok!r} -> word_id={wid}")
+
     train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
     dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
-    BATCH_SIZE = 16
+    BATCH_SIZE = 16  # not changed
     train_loader = DataLoader(
         train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     )
@@ -258,9 +271,9 @@ if __name__ == "__main__":
         test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
     )
 
-    lr = 2e-5
-    N_EPOCHS = 5
-    CLIP = 1
+    lr = 4e-5  # tried: 2e-5, 4e-5
+    N_EPOCHS = 5  # tried: 5
+    CLIP = 1  # tried: 1
     reports = []
 
     for run, seed in enumerate(SEEDS, 1):
@@ -276,8 +289,10 @@ if __name__ == "__main__":
             label2id=label2id,
         ).to(device)
         total_steps = len(train_loader) * N_EPOCHS
-        warmup_steps = int(0.1 * total_steps)
-        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+        warmup_steps = int(0.1 * total_steps)  # tried: 0.1
+        optimizer = optim.AdamW(
+            model.parameters(), lr=lr, weight_decay=8e-6
+        )  # tried: 0.01, 8e-6
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=warmup_steps,
