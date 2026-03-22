@@ -236,11 +236,13 @@ def aggregate_reports(reports):
 
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
+    CLIP = 1
     torch.backends.cudnn.deterministic = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    results_dir = Path(__file__).resolve().parent.parent / "results"
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
@@ -248,81 +250,133 @@ if __name__ == "__main__":
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        "answerdotai/ModernBERT-base"
-    )  # BERT: bert-base-cased
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
-    VERIFY_ALIGNMENT = True
-    if VERIFY_ALIGNMENT:
-        test_words = ["Enter", "Sandman", "at", "Lane", "Stadium", "is", "incredible"]
-        encoding = tokenizer(test_words, is_split_into_words=True, return_tensors="pt")
-        word_ids = encoding.word_ids()
-        tokens = tokenizer.convert_ids_to_tokens(encoding["input_ids"][0])
-        for i, (tok, wid) in enumerate(zip(tokens, word_ids)):
-            print(f"{i}: {tok!r} -> word_id={wid}")
+    # VERIFY_ALIGNMENT = True
+    # if VERIFY_ALIGNMENT:
+    #     test_words = ["Enter", "Sandman", "at", "Lane", "Stadium", "is", "incredible"]
+    #     encoding = tokenizer(test_words, is_split_into_words=True, return_tensors="pt")
+    #     word_ids = encoding.word_ids()
+    #     tokens = tokenizer.convert_ids_to_tokens(encoding["input_ids"][0])
+    #     for i, (tok, wid) in enumerate(zip(tokens, word_ids)):
+    #         print(f"{i}: {tok!r} -> word_id={wid}")
 
     train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
     dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
-    BATCH_SIZE = 16  # not changed
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
-    train_loader = DataLoader(
-        train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
-    )
-    dev_loader = DataLoader(
-        dev_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
-    )
-    test_loader = DataLoader(
-        test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
-    )
 
-    lr = 2e-5  # tried: 2e-5, 4e-5
-    N_EPOCHS = 5  # tried: 5
-    CLIP = 1  # tried: 1
-    reports = []
+    HP_CONFIGS = [
+        {"name": "A", "lr": 3e-5, "epochs": 5,  "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
+        {"name": "B", "lr": 5e-5, "epochs": 5,  "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
+        {"name": "C", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
+        {"name": "D", "lr": 5e-5, "epochs": 10, "warmup_ratio": 0.15, "weight_decay": 0.01,  "batch_size": 16},
+        {"name": "E", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.001, "batch_size": 16},
+        {"name": "F", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.20, "weight_decay": 0.01,  "batch_size": 16},
+        {"name": "G", "lr": 6e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 32},
+    ]
 
-    for run, seed in enumerate(SEEDS, 1):
-        print(f"\n{'=' * 50}")
-        print(f"Run {run}/3 — Seed {seed}")
-        print("=" * 50)
-        set_seeds_to(seed)
+    summary_rows = []
+    prev_batch_size = None
 
-        model = AutoModelForTokenClassification.from_pretrained(
-            "answerdotai/ModernBERT-base",
-            num_labels=len(label_list),
-            id2label=id2label,
-            label2id=label2id,
-        ).to(device)
-        total_steps = len(train_loader) * N_EPOCHS
-        warmup_steps = int(0.1 * total_steps)  # tried: 0.1
-        optimizer = optim.AdamW(
-            model.parameters(), lr=lr, weight_decay=0.01
-        )  # tried: 0.01, 8e-6
-        scheduler = get_linear_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=total_steps,
-        )
+    for cfg in HP_CONFIGS:
+        cfg_name = cfg["name"]
+        lr = cfg["lr"]
+        n_epochs = cfg["epochs"]
+        warmup_ratio = cfg["warmup_ratio"]
+        weight_decay = cfg["weight_decay"]
+        batch_size = cfg["batch_size"]
 
-        for epoch in range(N_EPOCHS):
-            print(f"\nEpoch {epoch + 1}/{N_EPOCHS}")
-            print("-" * 30)
-            train_loss = train_epoch(
-                model, train_loader, optimizer, scheduler, device, CLIP
+        if batch_size != prev_batch_size:
+            train_loader = DataLoader(
+                train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn
             )
-            val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
-            print(f"Train Loss: {train_loss:.3f}")
-            print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+            dev_loader = DataLoader(
+                dev_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+            )
+            test_loader = DataLoader(
+                test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+            )
+            prev_batch_size = batch_size
 
-        all_preds, all_true = get_predictions(model, test_loader, device, id2label)
-        report = classification_report(all_true, all_preds, output_dict=True)
-        reports.append(report)
-        del model
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        print(f"\n{'#' * 60}")
+        print(f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
+              f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}")
+        print(f"{'#' * 60}")
 
-    df = aggregate_reports(reports).set_index("")
-    print("\n=== ModernBERT Test Set Evaluation (3 seeds: 21, 42, 63) — mean ± std ===")
-    print(df.to_string())
-    results_dir = Path(__file__).resolve().parent.parent / "results"
-    df.to_csv(results_dir / "modernbert_ner_results.csv")
+        reports = []
+        best_val_f1s = []
+
+        for run, seed in enumerate(SEEDS, 1):
+            print(f"\n{'=' * 50}")
+            print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
+            print("=" * 50)
+            set_seeds_to(seed)
+
+            model = AutoModelForTokenClassification.from_pretrained(
+                "answerdotai/ModernBERT-base",
+                num_labels=len(label_list),
+                id2label=id2label,
+                label2id=label2id,
+            ).to(device)
+
+            total_steps = len(train_loader) * n_epochs
+            warmup_steps = int(warmup_ratio * total_steps)
+            optimizer = optim.AdamW(
+                model.parameters(), lr=lr, weight_decay=weight_decay
+            )
+            scheduler = get_linear_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=warmup_steps,
+                num_training_steps=total_steps,
+            )
+
+            best_val_f1 = 0.0
+            for epoch in range(n_epochs):
+                print(f"\nEpoch {epoch + 1}/{n_epochs}")
+                print("-" * 30)
+                train_loss = train_epoch(
+                    model, train_loader, optimizer, scheduler, device, CLIP
+                )
+                val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
+                print(f"Train Loss: {train_loss:.3f}")
+                print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+                best_val_f1 = max(best_val_f1, val_f1)
+
+            best_val_f1s.append(best_val_f1)
+            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
+            report = classification_report(all_true, all_preds, output_dict=True)
+            reports.append(report)
+            del model
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+        df = aggregate_reports(reports).set_index("")
+        print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
+        print(df.to_string())
+
+        csv_name = f"modernbert_ner_config_{cfg_name}.csv"
+        df.to_csv(results_dir / csv_name)
+        print(f"Saved to {csv_name}")
+
+        micro_f1 = df.loc["micro avg", "f1-score"]
+        summary_rows.append({
+            "config": cfg_name,
+            "lr": lr,
+            "epochs": n_epochs,
+            "warmup_ratio": warmup_ratio,
+            "weight_decay": weight_decay,
+            "batch_size": batch_size,
+            "micro_f1": micro_f1,
+            "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
+        })
+
+        summary_df = pd.DataFrame(summary_rows)
+        summary_df.to_csv(results_dir / "modernbert_hp_sweep_summary.csv", index=False)
+
+    print("\n" + "=" * 70)
+    print("HYPERPARAMETER SWEEP SUMMARY")
+    print("=" * 70)
+    summary_df = pd.DataFrame(summary_rows)
+    print(summary_df.to_string(index=False))
+    summary_df.to_csv(results_dir / "modernbert_hp_sweep_summary.csv", index=False)
