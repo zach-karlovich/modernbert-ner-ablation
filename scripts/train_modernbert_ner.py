@@ -324,3 +324,4 @@ if __name__ == "__main__":
     df = aggregate_reports(reports).set_index("")
     print("\n=== ModernBERT Test Set Evaluation (3 seeds: 21, 42, 63) — mean ± std ===")
     print(df.to_string())
+    df.to_csv("../results/modernbert_ner_results.csv")
