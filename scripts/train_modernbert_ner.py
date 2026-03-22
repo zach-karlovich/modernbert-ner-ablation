@@ -252,6 +252,7 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
+    # UNCOMMENT TO RUN ALIGNMENT VERIFICATION
     # VERIFY_ALIGNMENT = True
     # if VERIFY_ALIGNMENT:
     #     test_words = ["Enter", "Sandman", "at", "Lane", "Stadium", "is", "incredible"]
@@ -267,14 +268,64 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
+    # Hyperparameter configurations - Claude generated
     HP_CONFIGS = [
-        {"name": "A", "lr": 3e-5, "epochs": 5,  "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
-        {"name": "B", "lr": 5e-5, "epochs": 5,  "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
-        {"name": "C", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 16},
-        {"name": "D", "lr": 5e-5, "epochs": 10, "warmup_ratio": 0.15, "weight_decay": 0.01,  "batch_size": 16},
-        {"name": "E", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.001, "batch_size": 16},
-        {"name": "F", "lr": 3e-5, "epochs": 10, "warmup_ratio": 0.20, "weight_decay": 0.01,  "batch_size": 16},
-        {"name": "G", "lr": 6e-5, "epochs": 10, "warmup_ratio": 0.10, "weight_decay": 0.01,  "batch_size": 32},
+        {
+            "name": "A",
+            "lr": 3e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "B",
+            "lr": 5e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "C",
+            "lr": 3e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "D",
+            "lr": 5e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.15,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "E",
+            "lr": 3e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.001,
+            "batch_size": 16,
+        },
+        {
+            "name": "F",
+            "lr": 3e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.20,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "G",
+            "lr": 6e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 32,
+        },
     ]
 
     summary_rows = []
@@ -290,19 +341,27 @@ if __name__ == "__main__":
 
         if batch_size != prev_batch_size:
             train_loader = DataLoader(
-                train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                collate_fn=collate_fn,
             )
             dev_loader = DataLoader(
                 dev_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
             )
             test_loader = DataLoader(
-                test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=collate_fn,
             )
             prev_batch_size = batch_size
 
         print(f"\n{'#' * 60}")
-        print(f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-              f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}")
+        print(
+            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+        )
         print(f"{'#' * 60}")
 
         reports = []
@@ -360,16 +419,18 @@ if __name__ == "__main__":
         print(f"Saved to {csv_name}")
 
         micro_f1 = df.loc["micro avg", "f1-score"]
-        summary_rows.append({
-            "config": cfg_name,
-            "lr": lr,
-            "epochs": n_epochs,
-            "warmup_ratio": warmup_ratio,
-            "weight_decay": weight_decay,
-            "batch_size": batch_size,
-            "micro_f1": micro_f1,
-            "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
-        })
+        summary_rows.append(
+            {
+                "config": cfg_name,
+                "lr": lr,
+                "epochs": n_epochs,
+                "warmup_ratio": warmup_ratio,
+                "weight_decay": weight_decay,
+                "batch_size": batch_size,
+                "micro_f1": micro_f1,
+                "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
+            }
+        )
 
         summary_df = pd.DataFrame(summary_rows)
         summary_df.to_csv(results_dir / "modernbert_hp_sweep_summary.csv", index=False)
