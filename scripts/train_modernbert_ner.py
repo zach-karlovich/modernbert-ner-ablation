@@ -270,65 +270,102 @@ if __name__ == "__main__":
 
     # Hyperparameter configurations - Claude generated
     HP_CONFIGS = [
+        # {
+        #     "name": "A",
+        #     "lr": 3e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "B",
+        #     "lr": 5e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "C",
+        #     "lr": 3e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "D",
+        #     "lr": 5e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.15,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "E",
+        #     "lr": 3e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.001,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "F",
+        #     "lr": 3e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.20,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "G",
+        #     "lr": 6e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 32,
+        # },
         {
-            "name": "A",
-            "lr": 3e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "B",
-            "lr": 5e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "C",
-            "lr": 3e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "D",
-            "lr": 5e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.15,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "E",
-            "lr": 3e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.001,
-            "batch_size": 16,
-        },
-        {
-            "name": "F",
-            "lr": 3e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.20,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "G",
-            "lr": 6e-5,
+            "name": "H",
+            "lr": 7e-5,
             "epochs": 10,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 32,
         },
+        {
+            "name": "I",
+            "lr": 6e-5,
+            "epochs": 15,
+            "warmup_ratio": 0.15,
+            "weight_decay": 0.01,
+            "batch_size": 32,
+        },
+        {
+            "name": "J",
+            "lr": 8e-5,
+            "epochs": 10,
+            "warmup_ratio": 0.15,
+            "weight_decay": 0.01,
+            "batch_size": 48,
+        },
+        {
+            "name": "K",
+            "lr": 5e-5,
+            "epochs": 15,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.02,
+            "batch_size": 32,
+        },
     ]
 
-    summary_rows = []
+    summary_csv_path = results_dir / "modernbert_hp_sweep_summary.csv"
+    if summary_csv_path.exists():
+        existing_summary = pd.read_csv(summary_csv_path)
+        summary_rows = existing_summary.to_dict("records")
+    else:
+        summary_rows = []
     prev_batch_size = None
 
     for cfg in HP_CONFIGS:
@@ -433,11 +470,11 @@ if __name__ == "__main__":
         )
 
         summary_df = pd.DataFrame(summary_rows)
-        summary_df.to_csv(results_dir / "modernbert_hp_sweep_summary.csv", index=False)
+        summary_df.to_csv(summary_csv_path, index=False)
 
     print("\n" + "=" * 70)
     print("HYPERPARAMETER SWEEP SUMMARY")
     print("=" * 70)
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))
-    summary_df.to_csv(results_dir / "modernbert_hp_sweep_summary.csv", index=False)
+    summary_df.to_csv(summary_csv_path, index=False)
