@@ -1,5 +1,6 @@
 """Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py."""
 
+import copy
 import random
 from pathlib import Path
 
@@ -270,6 +271,55 @@ if __name__ == "__main__":
 
     # Hyperparameter configurations - Claude generated
     HP_CONFIGS = [
+        {
+            "name": "0",
+            "lr": 2e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "0a",
+            "lr": 1.5e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "0b",
+            "lr": 2.5e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "0c",
+            "lr": 3e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "L",
+            "lr": 2e-5,
+            "epochs": 7,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "M",
+            "lr": 2e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.001,
+            "batch_size": 16,
+        },
+        # Completed sweep configs 
         # {
         #     "name": "A",
         #     "lr": 3e-5,
@@ -326,38 +376,38 @@ if __name__ == "__main__":
         #     "weight_decay": 0.01,
         #     "batch_size": 32,
         # },
-        {
-            "name": "H",
-            "lr": 7e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 32,
-        },
-        {
-            "name": "I",
-            "lr": 6e-5,
-            "epochs": 15,
-            "warmup_ratio": 0.15,
-            "weight_decay": 0.01,
-            "batch_size": 32,
-        },
-        {
-            "name": "J",
-            "lr": 8e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.15,
-            "weight_decay": 0.01,
-            "batch_size": 48,
-        },
-        {
-            "name": "K",
-            "lr": 5e-5,
-            "epochs": 15,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.02,
-            "batch_size": 32,
-        },
+        # {
+        #     "name": "H",
+        #     "lr": 7e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 32,
+        # },
+        # {
+        #     "name": "I",
+        #     "lr": 6e-5,
+        #     "epochs": 15,
+        #     "warmup_ratio": 0.15,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 32,
+        # },
+        # {
+        #     "name": "J",
+        #     "lr": 8e-5,
+        #     "epochs": 10,
+        #     "warmup_ratio": 0.15,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 48,
+        # },
+        # {
+        #     "name": "K",
+        #     "lr": 5e-5,
+        #     "epochs": 15,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.02,
+        #     "batch_size": 32,
+        # },
     ]
 
     summary_csv_path = results_dir / "modernbert_hp_sweep_summary.csv"
@@ -403,6 +453,7 @@ if __name__ == "__main__":
 
         reports = []
         best_val_f1s = []
+        best_epochs = []
 
         for run, seed in enumerate(SEEDS, 1):
             print(f"\n{'=' * 50}")
@@ -429,6 +480,8 @@ if __name__ == "__main__":
             )
 
             best_val_f1 = 0.0
+            best_epoch = -1
+            best_state_dict = None
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -438,10 +491,23 @@ if __name__ == "__main__":
                 val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
                 print(f"Train Loss: {train_loss:.3f}")
                 print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
-                best_val_f1 = max(best_val_f1, val_f1)
+                if val_f1 > best_val_f1:
+                    best_val_f1 = val_f1
+                    best_epoch = epoch + 1
+                    best_state_dict = copy.deepcopy(model.state_dict())
 
             best_val_f1s.append(best_val_f1)
-            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
+            best_epochs.append(best_epoch)
+            if best_state_dict is not None:
+                model.load_state_dict(best_state_dict)
+            print(
+                f"[Config {cfg_name}] Seed {seed} best dev F1 "
+                f"{best_val_f1:.4f} at epoch {best_epoch}; "
+                "restored best checkpoint for test evaluation."
+            )
+            all_preds, all_true = get_predictions(
+                model, test_loader, device, id2label
+            )
             report = classification_report(all_true, all_preds, output_dict=True)
             reports.append(report)
             del model
@@ -466,6 +532,7 @@ if __name__ == "__main__":
                 "batch_size": batch_size,
                 "micro_f1": micro_f1,
                 "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
+                "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
             }
         )
 
