@@ -27,9 +27,9 @@ def count_entities(filepath):
             if line == "" or line.startswith("-DOCSTART-"):
                 continue
             ner_tag = line.split()[-1]
-            if ner_tag == "O":
+            if not ner_tag.startswith("B-"):
                 continue
-            entity_type = ner_tag.split("-")[1]
+            entity_type = ner_tag.split("-", 1)[1]
             counts[entity_type] += 1
     return counts
 
@@ -45,7 +45,7 @@ for name in required:
     status = "PASS" if n == exp else "FAIL"
     print(f"  {name}: {n} sentences (expected {exp}) {status}")
 
-print("\nEntity distribution:")
+print("\nEntity spans (B- tags):")
 for name, split in [("eng.train", "train"), ("eng.testa", "validation"), ("eng.testb", "test")]:
     counts = count_entities(out / name)
     print(f"  {split}: PER={counts['PER']} ORG={counts['ORG']} LOC={counts['LOC']} MISC={counts['MISC']}")
