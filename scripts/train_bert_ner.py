@@ -1,8 +1,10 @@
 """Fine-tune bert-base-cased on CoNLL-2003 NER. Patterns from deep learning coursework assignment 2 and 3.
 Classification report logic copied from notebooks/00bert_baseline.ipynb."""
 
+import copy
 import random
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -179,7 +181,7 @@ def evaluate(model, dataloader, device, id2label):
                 all_predictions.append(pred_seq)
                 all_labels.append(label_seq)
     epoch_loss = running_loss / len(dataloader)
-    f1 = f1_score(all_labels, all_predictions)
+    f1 = cast(float, f1_score(all_labels, all_predictions))
     return epoch_loss, f1
 
 
@@ -283,6 +285,10 @@ if __name__ == "__main__":
             num_training_steps=total_steps,
         )
 
+        best_val_f1 = 0.0
+        best_epoch = -1
+        best_state_dict = None
+
         for epoch in range(N_EPOCHS):
             print(f"\nEpoch {epoch + 1}/{N_EPOCHS}")
             print("-" * 30)
@@ -292,6 +298,17 @@ if __name__ == "__main__":
             val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
             print(f"Train Loss: {train_loss:.3f}")
             print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+            if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                best_epoch = epoch + 1
+                best_state_dict = copy.deepcopy(model.state_dict())
+
+        if best_state_dict is not None:
+            model.load_state_dict(best_state_dict)
+        print(
+            f"Seed {seed} best dev F1 {best_val_f1:.4f} at epoch {best_epoch}; "
+            "restored best checkpoint for test evaluation."
+        )
 
         all_preds, all_true = get_predictions(model, test_loader, device, id2label)
         report = classification_report(all_true, all_preds, output_dict=True)
@@ -303,4 +320,4 @@ if __name__ == "__main__":
     print("\n=== Test Set Evaluation (3 seeds: 21, 42, 63) — mean ± std ===")
     print(df.to_string())
     results_dir = Path(__file__).resolve().parent.parent / "results"
-    df.to_csv(results_dir / "bert_ner_results.csv")
+    df.to_csv(results_dir / "bert_ner_config_0.csv")
