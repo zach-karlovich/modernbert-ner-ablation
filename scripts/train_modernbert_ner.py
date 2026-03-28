@@ -236,6 +236,30 @@ def aggregate_reports(reports):
     return pd.DataFrame(rows)
 
 
+def build_optimizer(model, lr, weight_decay=0.01):
+    """AdamW with weight decay fix: exclude bias and norm params from decay."""
+    no_decay = ["bias", "norm.weight"]
+    grouped_params = [
+        {
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if not any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": weight_decay,
+        },
+        {
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": 0.0,
+        },
+    ]
+    return optim.AdamW(grouped_params, lr=lr)
+
+
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
     CLIP = 1
@@ -464,9 +488,7 @@ if __name__ == "__main__":
 
             total_steps = len(train_loader) * n_epochs
             warmup_steps = int(warmup_ratio * total_steps)
-            optimizer = optim.AdamW(
-                model.parameters(), lr=lr, weight_decay=weight_decay
-            )
+            optimizer = build_optimizer(model, lr=lr, weight_decay=weight_decay)
             scheduler = get_linear_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=warmup_steps,
