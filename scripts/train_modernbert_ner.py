@@ -3,6 +3,7 @@
 import copy
 import random
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -187,7 +188,7 @@ def evaluate(model, dataloader, device, id2label):
                 all_predictions.append(pred_seq)
                 all_labels.append(label_seq)
     epoch_loss = running_loss / len(dataloader)
-    f1 = f1_score(all_labels, all_predictions)
+    f1 = cast(float, f1_score(all_labels, all_predictions))
     return epoch_loss, f1
 
 
@@ -269,57 +270,47 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    # Hyperparameter configurations - Claude generated
     HP_CONFIGS = [
         {
-            "name": "0",
-            "lr": 2e-5,
-            "epochs": 5,
+            "name": "G",
+            "lr": 6e-5,
+            "epochs": 10,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
-            "batch_size": 16,
+            "batch_size": 32,
         },
-        {
-            "name": "0a",
-            "lr": 1.5e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "0b",
-            "lr": 2.5e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "0c",
-            "lr": 3e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "L",
-            "lr": 2e-5,
-            "epochs": 7,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "M",
-            "lr": 2e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.001,
-            "batch_size": 16,
-        },
-        # Completed sweep configs 
+        # {
+        #     "name": "0",
+        #     "lr": 2e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "0a",
+        #     "lr": 1.5e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "0b",
+        #     "lr": 2.5e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "0c",
+        #     "lr": 3e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
         # {
         #     "name": "A",
         #     "lr": 3e-5,
@@ -369,14 +360,6 @@ if __name__ == "__main__":
         #     "batch_size": 16,
         # },
         # {
-        #     "name": "G",
-        #     "lr": 6e-5,
-        #     "epochs": 10,
-        #     "warmup_ratio": 0.10,
-        #     "weight_decay": 0.01,
-        #     "batch_size": 32,
-        # },
-        # {
         #     "name": "H",
         #     "lr": 7e-5,
         #     "epochs": 10,
@@ -408,14 +391,25 @@ if __name__ == "__main__":
         #     "weight_decay": 0.02,
         #     "batch_size": 32,
         # },
+        # {
+        #     "name": "L",
+        #     "lr": 2e-5,
+        #     "epochs": 7,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.01,
+        #     "batch_size": 16,
+        # },
+        # {
+        #     "name": "M",
+        #     "lr": 2e-5,
+        #     "epochs": 5,
+        #     "warmup_ratio": 0.10,
+        #     "weight_decay": 0.001,
+        #     "batch_size": 16,
+        # },
     ]
 
-    summary_csv_path = results_dir / "modernbert_hp_sweep_summary.csv"
-    if summary_csv_path.exists():
-        existing_summary = pd.read_csv(summary_csv_path)
-        summary_rows = existing_summary.to_dict("records")
-    else:
-        summary_rows = []
+    summary_rows = []
     prev_batch_size = None
 
     for cfg in HP_CONFIGS:
@@ -505,9 +499,7 @@ if __name__ == "__main__":
                 f"{best_val_f1:.4f} at epoch {best_epoch}; "
                 "restored best checkpoint for test evaluation."
             )
-            all_preds, all_true = get_predictions(
-                model, test_loader, device, id2label
-            )
+            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
             report = classification_report(all_true, all_preds, output_dict=True)
             reports.append(report)
             del model
@@ -536,12 +528,8 @@ if __name__ == "__main__":
             }
         )
 
-        summary_df = pd.DataFrame(summary_rows)
-        summary_df.to_csv(summary_csv_path, index=False)
-
     print("\n" + "=" * 70)
     print("HYPERPARAMETER SWEEP SUMMARY")
     print("=" * 70)
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))
-    summary_df.to_csv(summary_csv_path, index=False)
