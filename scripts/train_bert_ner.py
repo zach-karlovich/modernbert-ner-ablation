@@ -1,5 +1,8 @@
 """Fine-tune bert-base-cased on CoNLL-2003 NER. Patterns from deep learning coursework assignment 2 and 3.
-Classification report logic copied from notebooks/00bert_baseline.ipynb."""
+Classification report logic copied from notebooks/00bert_baseline.ipynb.
+
+v2: AdamW weight decay excludes bias and LayerNorm params (Devlin et al.). Learning rate sweep via HP_CONFIGS
+(2e-5, 3e-5, 5e-5); per-config CSV output parallels train_modernbert_ner.py."""
 
 import copy
 import random
@@ -229,13 +232,39 @@ def aggregate_reports(reports):
     return pd.DataFrame(rows)
 
 
+def build_optimizer(model, lr, weight_decay=0.01):
+    no_decay = ["bias", "LayerNorm.weight"]
+    grouped_params = [
+        {
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if not any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": weight_decay,
+        },
+        {
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": 0.0,
+        },
+    ]
+    return optim.AdamW(grouped_params, lr=lr)
+
+
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
+    CLIP = 1
     torch.backends.cudnn.deterministic = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    results_dir = Path(__file__).resolve().parent.parent / "results"
+    results_dir.mkdir(exist_ok=True)
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
@@ -248,76 +277,152 @@ if __name__ == "__main__":
     dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
-    BATCH_SIZE = 16
-    train_loader = DataLoader(
-        train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
-    )
-    dev_loader = DataLoader(
-        dev_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
-    )
-    test_loader = DataLoader(
-        test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
-    )
+    HP_CONFIGS = [
+        {
+            "name": "2e5",
+            "lr": 2e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "3e5",
+            "lr": 3e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+        {
+            "name": "5e5",
+            "lr": 5e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+        },
+    ]
 
-    lr = 2e-5
-    N_EPOCHS = 5
-    CLIP = 1
-    reports = []
+    summary_rows = []
+    prev_batch_size = None
 
-    for run, seed in enumerate(SEEDS, 1):
-        print(f"\n{'=' * 50}")
-        print(f"Run {run}/3 — Seed {seed}")
-        print("=" * 50)
-        set_seeds_to(seed)
+    for cfg in HP_CONFIGS:
+        cfg_name = cfg["name"]
+        lr = cfg["lr"]
+        n_epochs = cfg["epochs"]
+        warmup_ratio = cfg["warmup_ratio"]
+        weight_decay = cfg["weight_decay"]
+        batch_size = cfg["batch_size"]
 
-        model = AutoModelForTokenClassification.from_pretrained(
-            "bert-base-cased",
-            num_labels=len(label_list),
-            id2label=id2label,
-            label2id=label2id,
-        ).to(device)
-        total_steps = len(train_loader) * N_EPOCHS
-        warmup_steps = int(0.1 * total_steps)
-        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
-        scheduler = get_linear_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=total_steps,
-        )
-
-        best_val_f1 = 0.0
-        best_epoch = -1
-        best_state_dict = None
-
-        for epoch in range(N_EPOCHS):
-            print(f"\nEpoch {epoch + 1}/{N_EPOCHS}")
-            print("-" * 30)
-            train_loss = train_epoch(
-                model, train_loader, optimizer, scheduler, device, CLIP
+        if batch_size != prev_batch_size:
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                collate_fn=collate_fn,
             )
-            val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
-            print(f"Train Loss: {train_loss:.3f}")
-            print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
-            if val_f1 > best_val_f1:
-                best_val_f1 = val_f1
-                best_epoch = epoch + 1
-                best_state_dict = copy.deepcopy(model.state_dict())
+            dev_loader = DataLoader(
+                dev_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+            )
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=collate_fn,
+            )
+            prev_batch_size = batch_size
 
-        if best_state_dict is not None:
-            model.load_state_dict(best_state_dict)
+        print(f"\n{'#' * 60}")
         print(
-            f"Seed {seed} best dev F1 {best_val_f1:.4f} at epoch {best_epoch}; "
-            "restored best checkpoint for test evaluation."
+            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+        )
+        print(f"{'#' * 60}")
+
+        reports = []
+        best_val_f1s = []
+        best_epochs = []
+
+        for run, seed in enumerate(SEEDS, 1):
+            print(f"\n{'=' * 50}")
+            print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
+            print("=" * 50)
+            set_seeds_to(seed)
+
+            model = AutoModelForTokenClassification.from_pretrained(
+                "bert-base-cased",
+                num_labels=len(label_list),
+                id2label=id2label,
+                label2id=label2id,
+            ).to(device)
+
+            total_steps = len(train_loader) * n_epochs
+            warmup_steps = int(warmup_ratio * total_steps)
+            optimizer = build_optimizer(model, lr=lr, weight_decay=weight_decay)
+            scheduler = get_linear_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=warmup_steps,
+                num_training_steps=total_steps,
+            )
+
+            best_val_f1 = 0.0
+            best_epoch = -1
+            best_state_dict = None
+            for epoch in range(n_epochs):
+                print(f"\nEpoch {epoch + 1}/{n_epochs}")
+                print("-" * 30)
+                train_loss = train_epoch(
+                    model, train_loader, optimizer, scheduler, device, CLIP
+                )
+                val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
+                print(f"Train Loss: {train_loss:.3f}")
+                print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+                if val_f1 > best_val_f1:
+                    best_val_f1 = val_f1
+                    best_epoch = epoch + 1
+                    best_state_dict = copy.deepcopy(model.state_dict())
+
+            best_val_f1s.append(best_val_f1)
+            best_epochs.append(best_epoch)
+            if best_state_dict is not None:
+                model.load_state_dict(best_state_dict)
+            print(
+                f"[Config {cfg_name}] Seed {seed} best dev F1 "
+                f"{best_val_f1:.4f} at epoch {best_epoch}; "
+                "restored best checkpoint for test evaluation."
+            )
+            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
+            report = classification_report(all_true, all_preds, output_dict=True)
+            reports.append(report)
+            del model
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+        df = aggregate_reports(reports).set_index("")
+        print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
+        print(df.to_string())
+
+        csv_name = f"bert_ner_config_{cfg_name}.csv"
+        df.to_csv(results_dir / csv_name)
+        print(f"Saved to {csv_name}")
+
+        micro_f1 = df.loc["micro avg", "f1-score"]
+        summary_rows.append(
+            {
+                "config": cfg_name,
+                "lr": lr,
+                "epochs": n_epochs,
+                "warmup_ratio": warmup_ratio,
+                "weight_decay": weight_decay,
+                "batch_size": batch_size,
+                "micro_f1": micro_f1,
+                "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
+                "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
+            }
         )
 
-        all_preds, all_true = get_predictions(model, test_loader, device, id2label)
-        report = classification_report(all_true, all_preds, output_dict=True)
-        reports.append(report)
-        del model
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
-    df = aggregate_reports(reports).set_index("")
-    print("\n=== Test Set Evaluation (3 seeds: 21, 42, 63) — mean ± std ===")
-    print(df.to_string())
-    results_dir = Path(__file__).resolve().parent.parent / "results"
-    df.to_csv(results_dir / "bert_ner_config_0.csv")
+    print("\n" + "=" * 70)
+    print("HYPERPARAMETER SWEEP SUMMARY")
+    print("=" * 70)
+    summary_df = pd.DataFrame(summary_rows)
+    print(summary_df.to_string(index=False))
