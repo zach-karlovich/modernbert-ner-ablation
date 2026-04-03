@@ -1,6 +1,6 @@
 # ModernBERT NER Ablation
 
-***IN PROGRESS***
+**_IN PROGRESS_**
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
@@ -13,10 +13,12 @@ We evaluate whether document-level context and CRF decoding provide additive or 
 ### Ablations
 
 We use two factors:
+
 - Document context: off/on
 - CRF decoding head: off/on
 
 This yields four configurations:
+
 1. Baseline ModernBERT (sentence-level, no CRF)
 2. ModernBERT + document context
 3. ModernBERT + CRF
@@ -30,28 +32,28 @@ Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/L
 
 Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3 seeds (21, 42, 63). For each seed, **test evaluation uses the checkpoint with highest dev F1** on `eng.testa`.
 
-**Matched-HP baseline:** **BERT** and **ModernBERT** config **0** (LR **2e-5**, **5** epochs, batch **16**). Rows/columns marked **—** are the **2×2 factorial** slots (document context × CRF) still to be filled. HP sweep (e.g. **config B** **0.8984** micro), tuned BERT, and full provenance: [results/results_summary.md](results/results_summary.md), [results/results_summary.csv](results/results_summary.csv).
+This section highlights the **matched-HP baseline** only: **BERT** and **ModernBERT** both use LR **2e-5**, **5** epochs, batch **16** (ModernBERT **config 0**). That isolates encoder/tokenizer differences under the same training recipe. HP sweep (e.g. best sentence-level **config B** at **0.8984** micro F1), tuned BERT, and ablation columns are in [results/results_summary.md](results/results_summary.md) and [results/results_summary.csv](results/results_summary.csv).
 
 ### Overall F1
 
-| Model | Micro F1 | Macro F1 |
-|-------|----------|----------|
-| BERT-base-cased (sentence-level, no CRF) | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
+| Model                                                  | Micro F1        | Macro F1        |
+| ------------------------------------------------------ | --------------- | --------------- |
+| BERT-base-cased (sentence-level, no CRF)               | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
 | ModernBERT-base (sentence-level, matched HP, config 0) | 0.8862 ± 0.0023 | 0.8720 ± 0.0024 |
-| ModernBERT-base + document context | — | — |
-| ModernBERT-base + CRF (sentence-level) | — | — |
-| ModernBERT-base + document context + CRF | — | — |
+| ModernBERT-base + document context                     | —               | —               |
+| ModernBERT-base + CRF (sentence-level)                 | —               | —               |
+| ModernBERT-base + document context + CRF               | —               | —               |
 
 ### Per-entity F1
 
 Entity order: PER, ORG, LOC, MISC. Baseline cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv).
 
-| Entity | BERT | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
-|--------|------|--------------------------------|------------------------|----------------------------|------------------------------|
-| PER | **0.9622** ± 0.0019 | 0.9528 ± 0.0035 | — | — | — |
-| ORG | **0.8975** ± 0.0037 | 0.8458 ± 0.0030 | — | — | — |
-| LOC | **0.9305** ± 0.0025 | 0.9100 ± 0.0021 | — | — | — |
-| MISC | **0.7973** ± 0.0021 | 0.7796 ± 0.0045 | — | — | — |
+| Entity | BERT                | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
+| ------ | ------------------- | ------------------------------- | --------------------- | --------------------------- | --------------------------- |
+| PER    | **0.9622** ± 0.0019 | 0.9528 ± 0.0035                 | —                     | —                           | —                           |
+| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | —                     | —                           | —                           |
+| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | —                     | —                           | —                           |
+| MISC   | **0.7973** ± 0.0021 | 0.7796 ± 0.0045                 | —                     | —                           | —                           |
 
 ## Planned Final Model
 
@@ -103,4 +105,3 @@ uv run python scripts/train_runner.py all
 ```
 
 The full list of ModernBERT configurations is commented out in `train_modernbert_ner.py`; to review or run specific configs, refer directly to that script. By default, running `modernbert` will execute all configs defined there, so a complete sweep is much heavier than a single BERT baseline run.
-
