@@ -278,26 +278,10 @@ if __name__ == "__main__":
     test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
     HP_CONFIGS = [
-        #{
-        #    "name": "2e5",
-        #    "lr": 2e-5,
-        #    "epochs": 5,
-        #    "warmup_ratio": 0.10,
-        #    "weight_decay": 0.01,
-        #    "batch_size": 16,
-        #},
         {
-            "name": "3e5",
-            "lr": 3e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
-            "name": "5e5",
-            "lr": 5e-5,
-            "epochs": 10,
+            "name": "0",
+            "lr": 2e-5,
+            "epochs": 5,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 16,
