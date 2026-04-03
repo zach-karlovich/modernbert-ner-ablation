@@ -5,7 +5,11 @@ from pathlib import Path
 
 SCRIPTS = {
     "bert": "train_bert_ner.py",
+    "bert_doc": "train_bert_doc_ner.py",
     "modernbert": "train_modernbert_ner.py",
+    "modernbert_doc": "train_modernbert_doc_ner.py",
+    "modernbert_crf": "PLACEHOLDER",
+    "modernbert_doc_crf": "PLACEHOLDER",
 }
 
 
@@ -13,7 +17,15 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Run NER training scripts.")
     p.add_argument(
         "which",
-        choices=["bert", "modernbert", "all"],
+        choices=[
+            "bert",
+            "bert_doc",
+            "modernbert",
+            "modernbert_doc",
+            "modernbert_crf",
+            "modernbert_doc_crf",
+            "all",
+        ],
         help="Which trainer to run, or all in SCRIPTS order.",
     )
     args = p.parse_args()
