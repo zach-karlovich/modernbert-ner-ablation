@@ -105,3 +105,5 @@ uv run python scripts/train_runner.py all
 ```
 
 The full list of ModernBERT configurations is commented out in `train_modernbert_ner.py`; to review or run specific configs, refer directly to that script. By default, running `modernbert` will execute all configs defined there, so a complete sweep is much heavier than a single BERT baseline run.
+
+Verification helpers (toy checks / data sanity): `uv run python scripts/conll2003_dataset_verification.py`, `conll2003_concat_verification.py`, `conll2003_tokenization_compare.py`, and `conll2003_crf_verification.py` (pytorch-crf padding mask + BIO illegal transitions).
