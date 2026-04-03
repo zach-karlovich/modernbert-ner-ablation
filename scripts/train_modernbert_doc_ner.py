@@ -231,10 +231,15 @@ class ConllDocContextDataset(Dataset):
         }
 
 
-def make_collate_fn(pad_token_id):
-    def collate_fn(batch):
+class ConllDocCollator:
+    """Top-level collator so DataLoader workers can pickle it (Python 3.14+ forkserver)."""
+
+    def __init__(self, pad_token_id: int):
+        self.pad_token_id = pad_token_id
+
+    def __call__(self, batch):
         max_len = max(item["input_ids"].size(0) for item in batch)
-        pad_id = pad_token_id
+        pad_id = self.pad_token_id
         input_ids_list = []
         attention_mask_list = []
         labels_list = []
@@ -254,8 +259,6 @@ def make_collate_fn(pad_token_id):
             torch.stack(attention_mask_list),
             torch.stack(labels_list),
         )
-
-    return collate_fn
 
 
 def train_epoch(model, dataloader, optimizer, scheduler, device, clip,
@@ -445,7 +448,7 @@ if __name__ == "__main__":
         test_docs, tokenizer, label2id, max_length=MAX_SEQ_LENGTH
     )
 
-    collate_fn = make_collate_fn(tokenizer.pad_token_id)
+    collate_fn = ConllDocCollator(tokenizer.pad_token_id)
 
     # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
