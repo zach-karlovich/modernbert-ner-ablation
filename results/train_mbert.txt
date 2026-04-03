@@ -1,0 +1,298 @@
+Using device: cuda
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG 0: lr=2e-05, epochs=5, warmup=0.1, wd=0.01, bs=16
+############################################################
+
+==================================================
+[Config 0] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.350
+Val Loss: 0.070, Val F1: 0.8888
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.042
+Val Loss: 0.049, Val F1: 0.9276
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.049, Val F1: 0.9334
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.050, Val F1: 0.9356
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.055, Val F1: 0.9410
+[Config 0] Seed 21 best dev F1 0.9410 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config 0] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.278
+Val Loss: 0.070, Val F1: 0.8874
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.039
+Val Loss: 0.048, Val F1: 0.9215
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.014
+Val Loss: 0.054, Val F1: 0.9271
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.059, Val F1: 0.9349
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.058, Val F1: 0.9353
+[Config 0] Seed 42 best dev F1 0.9353 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config 0] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.286
+Val Loss: 0.074, Val F1: 0.8862
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.037
+Val Loss: 0.044, Val F1: 0.9319
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.011
+Val Loss: 0.050, Val F1: 0.9326
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.053, Val F1: 0.9344
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.057, Val F1: 0.9422
+[Config 0] Seed 63 best dev F1 0.9422 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config 0 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9056 ± 0.0052  0.9145 ± 0.0011  0.9100 ± 0.0021
+MISC              702  0.7518 ± 0.0048  0.8096 ± 0.0060  0.7796 ± 0.0045
+ORG              1661  0.8201 ± 0.0058  0.8732 ± 0.0033  0.8458 ± 0.0030
+PER              1617  0.9589 ± 0.0041  0.9468 ± 0.0064  0.9528 ± 0.0035
+micro avg        5648  0.8741 ± 0.0022  0.8985 ± 0.0027  0.8862 ± 0.0023
+macro avg        5648  0.8591 ± 0.0023  0.8860 ± 0.0025  0.8720 ± 0.0024
+weighted avg     5648  0.8766 ± 0.0019  0.8985 ± 0.0027  0.8872 ± 0.0022
+Saved to modernbert_ner_config_0.csv
+
+############################################################
+CONFIG G: lr=6e-05, epochs=10, warmup=0.1, wd=0.01, bs=32
+############################################################
+
+==================================================
+[Config G] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/10
+------------------------------
+Train Loss: 0.380
+Val Loss: 0.086, Val F1: 0.8744
+
+Epoch 2/10
+------------------------------
+Train Loss: 0.047
+Val Loss: 0.048, Val F1: 0.9318
+
+Epoch 3/10
+------------------------------
+Train Loss: 0.017
+Val Loss: 0.046, Val F1: 0.9354
+
+Epoch 4/10
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.052, Val F1: 0.9327
+
+Epoch 5/10
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.055, Val F1: 0.9422
+
+Epoch 6/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.063, Val F1: 0.9384
+
+Epoch 7/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.062, Val F1: 0.9429
+
+Epoch 8/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.063, Val F1: 0.9449
+
+Epoch 9/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.066, Val F1: 0.9449
+
+Epoch 10/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.066, Val F1: 0.9452
+[Config G] Seed 21 best dev F1 0.9452 at epoch 10; restored best checkpoint for test evaluation.
+
+==================================================
+[Config G] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/10
+------------------------------
+Train Loss: 0.310
+Val Loss: 0.075, Val F1: 0.8765
+
+Epoch 2/10
+------------------------------
+Train Loss: 0.041
+Val Loss: 0.045, Val F1: 0.9318
+
+Epoch 3/10
+------------------------------
+Train Loss: 0.013
+Val Loss: 0.049, Val F1: 0.9246
+
+Epoch 4/10
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.052, Val F1: 0.9294
+
+Epoch 5/10
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.055, Val F1: 0.9409
+
+Epoch 6/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.058, Val F1: 0.9483
+
+Epoch 7/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.057, Val F1: 0.9457
+
+Epoch 8/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.060, Val F1: 0.9492
+
+Epoch 9/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.061, Val F1: 0.9494
+
+Epoch 10/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.061, Val F1: 0.9495
+[Config G] Seed 42 best dev F1 0.9495 at epoch 10; restored best checkpoint for test evaluation.
+
+==================================================
+[Config G] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/10
+------------------------------
+Train Loss: 0.319
+Val Loss: 0.073, Val F1: 0.8821
+
+Epoch 2/10
+------------------------------
+Train Loss: 0.039
+Val Loss: 0.040, Val F1: 0.9359
+
+Epoch 3/10
+------------------------------
+Train Loss: 0.014
+Val Loss: 0.040, Val F1: 0.9388
+
+Epoch 4/10
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.043, Val F1: 0.9373
+
+Epoch 5/10
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.052, Val F1: 0.9433
+
+Epoch 6/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.055, Val F1: 0.9456
+
+Epoch 7/10
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.055, Val F1: 0.9439
+
+Epoch 8/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.057, Val F1: 0.9458
+
+Epoch 9/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.058, Val F1: 0.9478
+
+Epoch 10/10
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.059, Val F1: 0.9475
+[Config G] Seed 63 best dev F1 0.9478 at epoch 9; restored best checkpoint for test evaluation.
+
+=== Config G Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9232 ± 0.0062  0.9171 ± 0.0054  0.9201 ± 0.0006
+MISC              702  0.7650 ± 0.0159  0.8158 ± 0.0052  0.7894 ± 0.0071
+ORG              1661  0.8402 ± 0.0079  0.8876 ± 0.0080  0.8632 ± 0.0050
+PER              1617  0.9534 ± 0.0060  0.9522 ± 0.0011  0.9528 ± 0.0025
+micro avg        5648  0.8858 ± 0.0047  0.9059 ± 0.0005  0.8957 ± 0.0023
+macro avg        5648  0.8704 ± 0.0054  0.8932 ± 0.0009  0.8814 ± 0.0024
+weighted avg     5648  0.8878 ± 0.0043  0.9059 ± 0.0005  0.8965 ± 0.0022
+Saved to modernbert_ner_config_G.csv
+
+======================================================================
+HYPERPARAMETER SWEEP SUMMARY
+======================================================================
+config      lr  epochs  warmup_ratio  weight_decay  batch_size   test_micro_f1     best_dev_f1 best_epoch_mean
+     0 0.00002       5           0.1          0.01          16 0.8862 ± 0.0023 0.9395 ± 0.0030            5.00
+     G 0.00006      10           0.1          0.01          32 0.8957 ± 0.0023 0.9475 ± 0.0018            9.67
