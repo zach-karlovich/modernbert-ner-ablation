@@ -567,7 +567,9 @@ if __name__ == "__main__":
         df.to_csv(results_dir / csv_name)
         print(f"Saved to {csv_name}")
 
-        micro_f1 = df.loc["micro avg", "f1-score"]
+        test_micro_f1 = df.loc["micro avg", "f1-score"]
+        dev_f1_mean = float(np.mean(best_val_f1s))
+        dev_f1_std = float(np.std(best_val_f1s))
         summary_rows.append(
             {
                 "config": cfg_name,
@@ -576,8 +578,8 @@ if __name__ == "__main__":
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
-                "micro_f1": micro_f1,
-                "best_val_f1_mean": f"{np.mean(best_val_f1s):.4f}",
+                "test_micro_f1": test_micro_f1,
+                "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
             }
         )

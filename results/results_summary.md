@@ -32,4 +32,4 @@ BERT leads on every entity type. The largest gap is on ORG (~2.7 pp for the best
 
 - **BERT** and **ModernBERT** both evaluate on the test set using the checkpoint with **highest dev F1** for each seed (best-checkpoint selection), then aggregate mean ± std across seeds.
 - **BERT** (this run): mean best dev F1 **0.9515**; mean best epoch **4.67** (epochs 4, 5, 5 for seeds 21, 42, 63). Source: [`old/train_ner_all.txt`](old/train_ner_all.txt).
-- Full hyperparameter grid (17 ModernBERT configs) is in [`results_summary.csv`](results_summary.csv). An archived sweep table is in [`old/modernbert_hp_sweep_summary.csv`](old/modernbert_hp_sweep_summary.csv). Individual per-config CSVs are in [`old/`](old/).
+- Full hyperparameter grid (17 ModernBERT configs) is in [`results_summary.csv`](results_summary.csv) (`test_micro_f1` = test set; `best_dev_f1` = dev set `eng.testa`, each mean ± std over seeds). An archived sweep table is in [`old/modernbert_hp_sweep_summary.csv`](old/modernbert_hp_sweep_summary.csv). Individual per-config CSVs are in [`old/`](old/).

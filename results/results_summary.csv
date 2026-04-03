@@ -1,4 +1,4 @@
-model,config,lr,epochs,warmup_ratio,weight_decay,batch_size,test_micro_f1,best_val_f1_mean,best_epoch_mean
+model,config,lr,epochs,warmup_ratio,weight_decay,batch_size,test_micro_f1,best_dev_f1,best_epoch_mean
 BERT,--,2e-05,5,0.10,0.01,16,0.9131 ± 0.0014,0.9515,4.67
 ModernBERT,0,2e-05,5,0.10,0.01,16,0.8895 ± 0.0018,0.9406,
 ModernBERT,0a,1.5e-05,5,0.10,0.01,16,0.8817 ± 0.0027,0.9339,
