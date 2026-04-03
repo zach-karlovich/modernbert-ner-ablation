@@ -26,18 +26,32 @@ Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/L
 
 ## Results
 
-**Last updated:** 2026-03-28 (aligned with [results/results_summary.md](results/results_summary.md)).
+**Last updated:** 2026-04-03 (aligned with [results/results_summary.md](results/results_summary.md)).
 
 Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3 seeds (21, 42, 63). For each seed, **test evaluation uses the checkpoint with highest dev F1** on `eng.testa`.
 
-The ModernBERT row is sweep **config G** (learning rate 6e-5, 10 epochs, batch size 32).
+**Matched-HP baseline:** **BERT** and **ModernBERT** config **0** (LR **2e-5**, **5** epochs, batch **16**). Rows/columns marked **—** are the **2×2 factorial** slots (document context × CRF) still to be filled. HP sweep (e.g. **config B** **0.8984** micro), tuned BERT, and full provenance: [results/results_summary.md](results/results_summary.md), [results/results_summary.csv](results/results_summary.csv).
+
+### Overall F1
 
 | Model | Micro F1 | Macro F1 |
 |-------|----------|----------|
-| BERT-base-cased (sentence-level, no CRF) | 0.9131 ± 0.0014 | 0.8983 ± 0.0013 |
-| ModernBERT-base (config G) | 0.9000 ± 0.0002 | 0.8854 ± 0.0016 |
+| BERT-base-cased (sentence-level, no CRF) | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
+| ModernBERT-base (sentence-level, matched HP, config 0) | 0.8862 ± 0.0023 | 0.8720 ± 0.0024 |
+| ModernBERT-base + document context | — | — |
+| ModernBERT-base + CRF (sentence-level) | — | — |
+| ModernBERT-base + document context + CRF | — | — |
 
-Full hyperparameter grid, per-entity breakdown, and provenance: [results/results_summary.md](results/results_summary.md), [results/results_summary.csv](results/results_summary.csv).
+### Per-entity F1
+
+Entity order: PER, ORG, LOC, MISC. Baseline cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv).
+
+| Entity | BERT | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
+|--------|------|--------------------------------|------------------------|----------------------------|------------------------------|
+| PER | **0.9622** ± 0.0019 | 0.9528 ± 0.0035 | — | — | — |
+| ORG | **0.8975** ± 0.0037 | 0.8458 ± 0.0030 | — | — | — |
+| LOC | **0.9305** ± 0.0025 | 0.9100 ± 0.0021 | — | — | — |
+| MISC | **0.7973** ± 0.0021 | 0.7796 ± 0.0045 | — | — | — |
 
 ## Planned Final Model
 
