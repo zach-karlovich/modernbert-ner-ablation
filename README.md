@@ -94,16 +94,34 @@ If you use Kaggle data access, configure Kaggle API credentials locally and do n
 
 ## Training
 
-Training scripts live under `scripts/`: [`train_bert_ner.py`](scripts/train_bert_ner.py) writes aggregated metrics to e.g. [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv); [`train_modernbert_ner.py`](scripts/train_modernbert_ner.py) writes one `results/modernbert_ner_config_<name>.csv` per sweep entry (e.g. [`results/modernbert_ner_config_G.csv`](results/modernbert_ner_config_G.csv)).
-
-[`train_runner.py`](scripts/train_runner.py) runs them in subprocess order:
+Place CoNLL-2003 files under `data/conll2003/` (`eng.train`, `eng.testa`, `eng.testb`). Example:
 
 ```bash
-uv run python scripts/train_runner.py bert
-uv run python scripts/train_runner.py modernbert
-uv run python scripts/train_runner.py all
+uv run python scripts/download_data.py
 ```
 
-The full list of ModernBERT configurations is commented out in `train_modernbert_ner.py`; to review or run specific configs, refer directly to that script. By default, running `modernbert` will execute all configs defined there, so a complete sweep is much heavier than a single BERT baseline run.
+### 2×2 ModernBERT ablation (exact scripts)
 
-Verification helpers (toy checks / data sanity): `uv run python scripts/conll2003_dataset_verification.py`, `conll2003_concat_verification.py`, `conll2003_tokenization_compare.py`, and `conll2003_crf_verification.py` (pytorch-crf padding mask + BIO illegal transitions).
+Each cell is produced by the corresponding script; metrics are written under `results/` as CSV plus a `config_<name>.json` for CRF runs (hyperparameters, seeds, git hash, library versions).
+
+| Configuration | Command | Primary result artifacts |
+| ------------- | ------- | ------------------------ |
+| 1. Sentence, linear head | `uv run python scripts/train_modernbert_ner.py` | `results/modernbert_ner_config_0.csv` (matched HP; script may also run other `HP_CONFIGS` entries) |
+| 2. Document context, linear head | `uv run python scripts/train_modernbert_doc_ner.py` | `results/modernbert_doc_ner_config_doc_5e5_bs2.csv` (among sweep files in that script) |
+| 3. Sentence, CRF head | `uv run python scripts/train_modernbert_crf_ner.py` | `results/modernbert_crf_ner_config_0.csv`, `results/modernbert_crf_ner_config_0.json` |
+| 4. Document context, CRF head | `uv run python scripts/train_modernbert_doc_crf_ner.py` | `results/modernbert_doc_crf_ner_config_doc_5e5_bs2.csv`, `results/modernbert_doc_crf_ner_config_doc_5e5_bs2.json` |
+
+Copy-paste:
+
+```bash
+uv run python scripts/train_modernbert_ner.py
+uv run python scripts/train_modernbert_doc_ner.py
+uv run python scripts/train_modernbert_crf_ner.py
+uv run python scripts/train_modernbert_doc_crf_ner.py
+```
+
+[`train_bert_ner.py`](scripts/train_bert_ner.py) writes e.g. [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv). [`train_runner.py`](scripts/train_runner.py) can launch trainers by name (`bert`, `modernbert`, `modernbert_doc`, `modernbert_crf`, `modernbert_doc_crf`, `all`). Note: `bert_doc` in the runner points to a script that is not in this repo.
+
+The full list of hyperparameter entries is defined in each training script’s `HP_CONFIGS`; a full sweep is heavier than a single-config run.
+
+Verification helpers (toy checks / data sanity): `uv run python scripts/conll2003_dataset_verification.py`, `conll2003_concat_verification.py`, `conll2003_tokenization_compare.py`, and `conll2003_crf_verification.py` (pytorch-crf padding mask, BIO constraints, dense-label roundtrip vs. datasets).
