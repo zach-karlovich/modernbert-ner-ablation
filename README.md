@@ -28,11 +28,11 @@ Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/L
 
 ## Results
 
-**Last updated:** 2026-04-03 (aligned with [results/results_summary.md](results/results_summary.md)).
+**Last updated:** 2026-04-04 (aligned with [results/results_summary.md](results/results_summary.md)).
 
 Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3 seeds (21, 42, 63). For each seed, **test evaluation uses the checkpoint with highest dev F1** on `eng.testa`.
 
-This section highlights the **matched-HP baseline** only: **BERT** and **ModernBERT** both use LR **2e-5**, **5** epochs, batch **16** (ModernBERT **config 0**). That isolates encoder/tokenizer differences under the same training recipe. HP sweep (e.g. best sentence-level **config B** at **0.8984** micro F1), tuned BERT, and ablation columns are in [results/results_summary.md](results/results_summary.md) and [results/results_summary.csv](results/results_summary.csv).
+**BERT** and sentence-level **ModernBERT (config 0)** use the **matched-HP** recipe: LR **2e-5**, **5** epochs, batch **16**. **ModernBERT + document** uses LR **5e-5**, batch **2**, **8192** max length, grad accumulation **8** ([`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv))—not matched to the sentence baselines. HP sweep (e.g. sentence **config B** at **0.8984** micro F1), tuned BERT, and CRF ablations are in [results/results_summary.md](results/results_summary.md) and [results/results_summary.csv](results/results_summary.csv).
 
 ### Overall F1
 
@@ -40,20 +40,20 @@ This section highlights the **matched-HP baseline** only: **BERT** and **ModernB
 | ------------------------------------------------------ | --------------- | --------------- |
 | BERT-base-cased (sentence-level, no CRF)               | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
 | ModernBERT-base (sentence-level, matched HP, config 0) | 0.8862 ± 0.0023 | 0.8720 ± 0.0024 |
-| ModernBERT-base + document context                     | —               | —               |
+| ModernBERT-base + document context                     | 0.9162 ± 0.0017 | 0.9004 ± 0.0015 |
 | ModernBERT-base + CRF (sentence-level)                 | —               | —               |
 | ModernBERT-base + document context + CRF               | —               | —               |
 
 ### Per-entity F1
 
-Entity order: PER, ORG, LOC, MISC. Baseline cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv).
+Entity order: PER, ORG, LOC, MISC. BERT and sentence ModernBERT cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv). Document column: [`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv).
 
 | Entity | BERT                | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
 | ------ | ------------------- | ------------------------------- | --------------------- | --------------------------- | --------------------------- |
-| PER    | **0.9622** ± 0.0019 | 0.9528 ± 0.0035                 | —                     | —                           | —                           |
-| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | —                     | —                           | —                           |
-| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | —                     | —                           | —                           |
-| MISC   | **0.7973** ± 0.0021 | 0.7796 ± 0.0045                 | —                     | —                           | —                           |
+| PER    | 0.9622 ± 0.0019     | 0.9528 ± 0.0035                 | **0.9808** ± 0.0022   | —                           | —                           |
+| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | 0.8942 ± 0.0041       | —                           | —                           |
+| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | 0.9268 ± 0.0016       | —                           | —                           |
+| MISC   | 0.7973 ± 0.0021     | 0.7796 ± 0.0045                 | **0.7999** ± 0.0008   | —                           | —                           |
 
 ## Planned Final Model
 
