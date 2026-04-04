@@ -453,7 +453,34 @@ if __name__ == "__main__":
     # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
 
+    # doc_0: lr/epochs/warmup/wd match sentence config "0" (train_modernbert_ner.py).
+    # batch_size 2 for 8192 context (sentence-level uses 16).
+    # doc_3e5_bs2 / doc_4e5_bs2 / doc_5e5_bs2: light LR sweep (same schedule, BS).
     HP_CONFIGS = [
+        {
+            "name": "doc_0",
+            "lr": 2e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 2,
+        },
+        {
+            "name": "doc_3e5_bs2",
+            "lr": 3e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 2,
+        },
+        {
+            "name": "doc_4e5_bs2",
+            "lr": 4e-5,
+            "epochs": 5,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 2,
+        },
         {
             "name": "doc_5e5_bs2",
             "lr": 5e-5,
