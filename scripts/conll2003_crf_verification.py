@@ -1,6 +1,12 @@
 """
 Toy checks for pytorch-crf: padding mask ignored at padded steps, BIO illegal
 transitions heavily penalized (e.g. B-LOC -> I-PER), and decode respects mask.
+
+Updated to use regression checks for:
+
+- padding/masks
+- transitions
+- CRF dense labeling against dataset 
 """
 
 import sys

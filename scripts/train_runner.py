@@ -8,8 +8,8 @@ SCRIPTS = {
     "bert_doc": "train_bert_doc_ner.py",
     "modernbert": "train_modernbert_ner.py",
     "modernbert_doc": "train_modernbert_doc_ner.py",
-    "modernbert_crf": "PLACEHOLDER",
-    "modernbert_doc_crf": "PLACEHOLDER",
+    "modernbert_crf": "train_modernbert_crf_ner.py",
+    "modernbert_doc_crf": "train_modernbert_doc_crf_ner.py",
 }
 
 

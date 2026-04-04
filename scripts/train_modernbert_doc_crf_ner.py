@@ -1,4 +1,13 @@
-"""Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with in-document context."""
+"""
+Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with in-document context.
+
+Document-level ModernBERT + constrained CRF.
+
+- dataloading
+- train/eval/test with seqeval
+- HP sweep
+- JSON config logs
+"""
 
 import copy
 import json

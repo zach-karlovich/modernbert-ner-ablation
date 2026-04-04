@@ -1,4 +1,14 @@
-"""Fine-tune ModernBERT-base + constrained CRF on CoNLL-2003 NER (sentence-level)."""
+"""
+Fine-tune ModernBERT-base + constrained CRF on CoNLL-2003 NER (sentence-level).
+
+Senetence-level ModernBERT + constrained CRF.
+
+- dataloading
+- train/eval/test with seqeval
+- HP sweep
+- JSON config logs
+
+"""
 
 import copy
 import json
