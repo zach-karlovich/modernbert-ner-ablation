@@ -14,3 +14,104 @@ CONFIG doc_5e5_bs2: lr=5e-05, epochs=5, warmup=0.1, wd=0.01, bs=2
 
 Epoch 1/5
 ------------------------------
+Train Loss: 0.257
+Val Loss: 0.048, Val F1: 0.9375
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.029
+Val Loss: 0.038, Val F1: 0.9510
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.013
+Val Loss: 0.034, Val F1: 0.9555
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.041, Val F1: 0.9553
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.047, Val F1: 0.9564
+[Config doc_5e5_bs2] Seed 21 best dev F1 0.9564 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs2] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.201
+Val Loss: 0.050, Val F1: 0.9380
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.031
+Val Loss: 0.034, Val F1: 0.9548
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.013
+Val Loss: 0.037, Val F1: 0.9479
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.040, Val F1: 0.9553
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.044, Val F1: 0.9588
+[Config doc_5e5_bs2] Seed 42 best dev F1 0.9588 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs2] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.225
+Val Loss: 0.053, Val F1: 0.9285
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.028
+Val Loss: 0.035, Val F1: 0.9564
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.038, Val F1: 0.9529
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.040, Val F1: 0.9572
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.046, Val F1: 0.9587
+[Config doc_5e5_bs2] Seed 63 best dev F1 0.9587 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config doc_5e5_bs2 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9305 ± 0.0039  0.9231 ± 0.0069  0.9268 ± 0.0016
+MISC              702  0.7748 ± 0.0012  0.8267 ± 0.0029  0.7999 ± 0.0008
+ORG              1661  0.8695 ± 0.0100  0.9203 ± 0.0027  0.8942 ± 0.0041
+PER              1617  0.9791 ± 0.0035  0.9825 ± 0.0013  0.9808 ± 0.0022
+micro avg        5648  0.9054 ± 0.0017  0.9273 ± 0.0017  0.9162 ± 0.0017
+macro avg        5648  0.8885 ± 0.0011  0.9131 ± 0.0019  0.9004 ± 0.0015
+weighted avg     5648  0.9071 ± 0.0014  0.9273 ± 0.0017  0.9169 ± 0.0016
+Saved to modernbert_doc_ner_config_doc_5e5_bs2.csv
+
+======================================================================
+HYPERPARAMETER SWEEP SUMMARY
+======================================================================
+     config      lr  epochs  warmup_ratio  weight_decay  batch_size   test_micro_f1     best_dev_f1 best_epoch_mean
+doc_5e5_bs2 0.00005       5           0.1          0.01           2 0.9162 ± 0.0017 0.9579 ± 0.0011            5.00
