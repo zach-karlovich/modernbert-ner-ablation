@@ -10,6 +10,8 @@ SCRIPTS = {
     "modernbert_doc": "train_modernbert_doc_ner.py",
     "modernbert_crf": "train_modernbert_crf_ner.py",
     "modernbert_doc_crf": "train_modernbert_doc_crf_ner.py",
+    "modernbert_doc_crf_doc0": "train_modernbert_doc_crf_ner_doc0.py",
+    "modernbert_doc_crf_doc5e5": "train_modernbert_doc_crf_ner_doc5e5.py",
 }
 
 
@@ -24,6 +26,8 @@ def main() -> None:
             "modernbert_doc",
             "modernbert_crf",
             "modernbert_doc_crf",
+            "modernbert_doc_crf_doc0",
+            "modernbert_doc_crf_doc5e5",
             "all",
         ],
         help="Which trainer to run, or all in SCRIPTS order.",

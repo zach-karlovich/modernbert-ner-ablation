@@ -1,6 +1,6 @@
 """
-Wraps emissions + constrained CRF in a single module. Specifically for sentence-level
-context. 
+Wraps emissions + constrained CRF in a single module.
+CRF forward/decode always runs in fp32 for numerical stability under bf16 autocast.
 """
 
 import torch
@@ -36,7 +36,7 @@ class ModernBertTokenCRF(nn.Module):
         labels: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         outputs = self.base(input_ids=input_ids, attention_mask=attention_mask)
-        emissions = outputs.logits
+        emissions = outputs.logits.float()
         mask = attention_mask.bool()
         if labels is not None:
             llh = self.crf(emissions, labels, mask=mask, reduction="sum")
