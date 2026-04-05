@@ -1,7 +1,7 @@
 """
 Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with document context.
 
-Single config: doc_5e5_bs2 (lr=5e-5, crf_lr=2.5e-4, 5 epochs).
+Single config: doc_5e5_bs4 (lr=5e-5, crf_lr=2.5e-4, batch 4, 5 epochs).
 
 Optimizations vs the original combined script:
 - bf16 autocast (CRF emissions kept in fp32 via model)
@@ -419,7 +419,7 @@ NUM_WORKERS = 2
 SCRIPT_NAME = "train_modernbert_doc_crf_ner_doc5e5.py"
 
 HP_CONFIG = {
-    "name": "doc_5e5_bs2",
+    "name": "doc_5e5_bs4",
     "lr": 5e-5,
     "crf_lr": 2.5e-4,
     "epochs": 5,
