@@ -28,11 +28,11 @@ Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/L
 
 ## Results
 
-**Last updated:** 2026-04-04 (aligned with [results/results_summary.md](results/results_summary.md)).
+**Last updated:** 2026-04-05 (aligned with [results/results_summary.md](results/results_summary.md)).
 
 Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3 seeds (21, 42, 63). For each seed, **test evaluation uses the checkpoint with highest dev F1** on `eng.testa`.
 
-**BERT** and sentence-level **ModernBERT (config 0)** use the **matched-HP** recipe: LR **2e-5**, **5** epochs, batch **16**. **ModernBERT + document** uses LR **5e-5**, batch **2**, **8192** max length, grad accumulation **8** ([`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv))—not matched to the sentence baselines. HP sweep (e.g. sentence **config B** at **0.8984** micro F1), tuned BERT, and CRF ablations are in [results/results_summary.md](results/results_summary.md) and [results/results_summary.csv](results/results_summary.csv).
+**BERT** and sentence-level **ModernBERT (config 0)** use the **matched-HP** recipe: LR **2e-5**, **5** epochs, batch **16**. **ModernBERT + document** uses LR **5e-5**, batch **2**, **8192** max length, grad accumulation **8** ([`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv))—not matched to the sentence baselines. **ModernBERT + CRF (sentence)** headline numbers use **config G** (test micro **0.8998**): [`results/modernbert_crf_ner_config_G.csv`](results/modernbert_crf_ner_config_G.csv), manifest [`results/modernbert_crf_ner_config_G.json`](results/modernbert_crf_ner_config_G.json), log [`results/train_mbert_crf.txt`](results/train_mbert_crf.txt). Matched-HP sentence CRF (config **0**) is **0.8930** micro F1 vs **0.8862** linear config 0—see [results/results_summary.md](results/results_summary.md). **Document + CRF** is still **incomplete** (no CSV; [`results/train_mbert_doc_crf.txt`](results/train_mbert_doc_crf.txt) stops mid-run). Full grid: [results/results_summary.csv](results/results_summary.csv).
 
 ### Overall F1
 
@@ -41,19 +41,19 @@ Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3
 | BERT-base-cased (sentence-level, no CRF)               | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
 | ModernBERT-base (sentence-level, matched HP, config 0) | 0.8862 ± 0.0023 | 0.8720 ± 0.0024 |
 | ModernBERT-base + document context                     | 0.9162 ± 0.0017 | 0.9004 ± 0.0015 |
-| ModernBERT-base + CRF (sentence-level)                 | —               | —               |
+| ModernBERT-base + CRF (sentence-level, config G)       | 0.8998 ± 0.0017 | 0.8862 ± 0.0018 |
 | ModernBERT-base + document context + CRF               | —               | —               |
 
 ### Per-entity F1
 
-Entity order: PER, ORG, LOC, MISC. BERT and sentence ModernBERT cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv). Document column: [`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv).
+Entity order: PER, ORG, LOC, MISC. BERT and sentence ModernBERT cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv). Document column: [`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv). Sentence + CRF: [`results/modernbert_crf_ner_config_G.csv`](results/modernbert_crf_ner_config_G.csv) (config **G**, not matched to config 0 HP).
 
-| Entity | BERT                | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
-| ------ | ------------------- | ------------------------------- | --------------------- | --------------------------- | --------------------------- |
-| PER    | 0.9622 ± 0.0019     | 0.9528 ± 0.0035                 | **0.9808** ± 0.0022   | —                           | —                           |
-| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | 0.8942 ± 0.0041       | —                           | —                           |
-| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | 0.9268 ± 0.0016       | —                           | —                           |
-| MISC   | 0.7973 ± 0.0021     | 0.7796 ± 0.0045                 | **0.7999** ± 0.0008   | —                           | —                           |
+| Entity | BERT                | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF G) | ModernBERT (document + CRF) |
+| ------ | ------------------- | ------------------------------- | --------------------- | ----------------------------- | --------------------------- |
+| PER    | 0.9622 ± 0.0019     | 0.9528 ± 0.0035                 | **0.9808** ± 0.0022   | 0.9544 ± 0.0013               | —                           |
+| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | 0.8942 ± 0.0041       | 0.8690 ± 0.0029               | —                           |
+| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | 0.9268 ± 0.0016       | 0.9201 ± 0.0025               | —                           |
+| MISC   | 0.7973 ± 0.0021     | 0.7796 ± 0.0045                 | **0.7999** ± 0.0008   | 0.8012 ± 0.0035               | —                           |
 
 ## Planned Final Model
 
@@ -109,7 +109,7 @@ Each cell is produced by the corresponding script; metrics are written under `re
 | 1. Sentence, linear head | `uv run python scripts/train_modernbert_ner.py` | `results/modernbert_ner_config_0.csv` (matched HP; script may also run other `HP_CONFIGS` entries) |
 | 2. Document context, linear head | `uv run python scripts/train_modernbert_doc_ner.py` | `results/modernbert_doc_ner_config_doc_5e5_bs2.csv` (among sweep files in that script) |
 | 3. Sentence, CRF head | `uv run python scripts/train_modernbert_crf_ner.py` | `results/modernbert_crf_ner_config_0.csv`, `results/modernbert_crf_ner_config_0.json` |
-| 4. Document context, CRF head | `uv run python scripts/train_modernbert_doc_crf_ner.py` | `results/modernbert_doc_crf_ner_config_doc_5e5_bs2.csv`, `results/modernbert_doc_crf_ner_config_doc_5e5_bs2.json` |
+| 4. Document context, CRF head | `uv run python scripts/train_modernbert_doc_crf_ner.py` | `results/modernbert_doc_crf_ner_config_doc_0.json` (manifest when run); CSV written when training completes (current doc CRF log is incomplete) |
 
 Copy-paste:
 
