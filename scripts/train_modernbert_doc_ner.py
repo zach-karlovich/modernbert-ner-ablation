@@ -1,11 +1,17 @@
 """
 Fine-tune ModernBERT-base on CoNLL-2003 NER with in-document context (8192 tokens).
+
+Single HP config **doc_4e5_bs2**: lr 4e-5 — best test micro F1 in the doc-context linear sweep
+(`ner_mbert_doc_best.{csv,json}`; internal config label `doc_4e5_bs2`).
+For lr 5e-5 use a one-off rename or restore sweep list.
 """
 
 import copy
+import json
 import random
+import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -23,6 +29,7 @@ from transformers import (
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 8
+OUTPUT_STEM = "ner_mbert_doc_best"
 
 
 def parse_conll_documents(filepath):
@@ -408,6 +415,42 @@ def build_optimizer(model, lr, weight_decay=0.01):
     return optim.AdamW(grouped_params, lr=lr)
 
 
+def save_run_manifest(
+    path: Path,
+    cfg_name: str,
+    cfg: dict[str, Any],
+    seeds: list[int],
+    *,
+    model_id: str,
+    max_seq_length: int,
+    grad_accum_steps: int,
+    script_name: str,
+) -> None:
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path.parent.parent,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        git_hash = "unknown"
+    import importlib.metadata as im
+
+    payload = {
+        "config_name": cfg_name,
+        "seeds": seeds,
+        "git_commit": git_hash,
+        "hyperparameters": cfg,
+        "torch_version": torch.__version__,
+        "transformers_version": im.version("transformers"),
+        "model_id": model_id,
+        "max_seq_length": max_seq_length,
+        "grad_accum_steps": grad_accum_steps,
+        "script": script_name,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 NUM_WORKERS = 2  # Tune for Rivanna; 0 to disable multiprocess loading
 
 
@@ -453,37 +496,10 @@ if __name__ == "__main__":
     # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
 
-    # doc_0: lr/epochs/warmup/wd match sentence config "0" (train_modernbert_ner.py).
-    # batch_size 2 for 8192 context (sentence-level uses 16).
-    # doc_3e5_bs2 / doc_4e5_bs2 / doc_5e5_bs2: light LR sweep (same schedule, BS).
     HP_CONFIGS = [
-        {
-            "name": "doc_0",
-            "lr": 2e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
-        },
-        {
-            "name": "doc_3e5_bs2",
-            "lr": 3e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
-        },
         {
             "name": "doc_4e5_bs2",
             "lr": 4e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
-        },
-        {
-            "name": "doc_5e5_bs2",
-            "lr": 5e-5,
             "epochs": 5,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
@@ -508,6 +524,17 @@ if __name__ == "__main__":
             f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
         )
         print(f"{'#' * 60}")
+
+        save_run_manifest(
+            results_dir / f"{OUTPUT_STEM}.json",
+            cfg_name,
+            cfg,
+            SEEDS,
+            model_id=MODEL_ID,
+            max_seq_length=MAX_SEQ_LENGTH,
+            grad_accum_steps=GRAD_ACCUM_STEPS,
+            script_name="train_modernbert_doc_ner.py",
+        )
 
         reports = []
         best_val_f1s = []
@@ -609,7 +636,7 @@ if __name__ == "__main__":
         print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
         print(df.to_string())
 
-        csv_name = f"modernbert_doc_ner_config_{cfg_name}.csv"
+        csv_name = f"{OUTPUT_STEM}.csv"
         df.to_csv(results_dir / csv_name)
         print(f"Saved to {csv_name}")
 
@@ -631,7 +658,7 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 70)
-    print("HYPERPARAMETER SWEEP SUMMARY")
+    print("RUN SUMMARY")
     print("=" * 70)
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))
