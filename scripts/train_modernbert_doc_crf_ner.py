@@ -1,12 +1,13 @@
 """
-Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with in-document context.
+Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with document context.
 
 Document-level ModernBERT + constrained CRF.
 
-- dataloading
-- train/eval/test with seqeval
-- HP sweep
-- JSON config logs
+Optimizations:
+- bf16 autocast (CRF emissions kept in fp32 via model)
+- gradient checkpointing
+- batch_size 4, grad_accum 4 (effective batch 16)
+- pin_memory on DataLoaders
 """
 
 import copy
@@ -35,8 +36,9 @@ from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
-GRAD_ACCUM_STEPS = 8
+GRAD_ACCUM_STEPS = 4
 WORD_PAD_ID = -99
+OUTPUT_STEM = "ner_mbert_doc_crf_tuned"
 
 
 def parse_conll_documents(filepath):
@@ -268,7 +270,8 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, clip,
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         labels = labels.to(device)
-        loss, _ = model(input_ids, attention_mask, labels)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            loss, _ = model(input_ids, attention_mask, labels)
         loss = loss / grad_accum_steps
         loss.backward()
         running_loss += (loss.item() * grad_accum_steps)
@@ -299,9 +302,11 @@ def evaluate(model, dataloader, device, id2label_map):
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            loss, _ = model(input_ids, attention_mask, labels)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                loss, _ = model(input_ids, attention_mask, labels)
             running_loss += loss.item()
-            paths = model.decode(input_ids, attention_mask)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                paths = model.decode(input_ids, attention_mask)
             bsz = input_ids.size(0)
             for i in range(bsz):
                 L = int(attention_mask[i].sum().item())
@@ -332,7 +337,8 @@ def get_predictions(model, dataloader, device, id2label_map):
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            paths = model.decode(input_ids, attention_mask)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                paths = model.decode(input_ids, attention_mask)
             bsz = input_ids.size(0)
             for i in range(bsz):
                 L = int(attention_mask[i].sum().item())
@@ -371,7 +377,10 @@ def aggregate_reports(reports):
                     row["support"] = int(support)
                 break
         for m in metric_keys:
-            vals = [r[key][m] if key in r and m in r[key] else 0.0 for r in reports]
+            vals = [
+                r[key][m] if key in r and m in r[key] else 0.0
+                for r in reports
+            ]
             mean_val = np.mean(vals)
             std_val = np.std(vals)
             row[m] = f"{mean_val:.4f} ± {std_val:.4f}"
@@ -411,6 +420,17 @@ def save_run_config(
 
 NUM_WORKERS = 2
 
+SCRIPT_NAME = "train_modernbert_doc_crf_ner.py"
+
+HP_CONFIG = {
+    "name": "doc_5e5_bs4",
+    "lr": 5e-5,
+    "crf_lr": 2.5e-4,
+    "epochs": 5,
+    "warmup_ratio": 0.10,
+    "weight_decay": 0.01,
+    "batch_size": 4,
+}
 
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
@@ -455,179 +475,141 @@ if __name__ == "__main__":
 
     loader_generator = torch.Generator()
 
-    HP_CONFIGS = [
+    cfg = HP_CONFIG
+    cfg_name = cfg["name"]
+    lr = cfg["lr"]
+    crf_lr = cfg["crf_lr"]
+    n_epochs = cfg["epochs"]
+    warmup_ratio = cfg["warmup_ratio"]
+    weight_decay = cfg["weight_decay"]
+    batch_size = cfg["batch_size"]
+
+    save_run_config(
+        results_dir / f"{OUTPUT_STEM}.json",
+        cfg_name,
+        cfg,
+        SEEDS,
         {
-            "name": "doc_0",
-            "lr": 2e-5,
-            "crf_lr": 2e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
+            "model_id": MODEL_ID,
+            "max_seq_length": MAX_SEQ_LENGTH,
+            "grad_accum_steps": GRAD_ACCUM_STEPS,
+            "script": SCRIPT_NAME,
         },
-        {
-            "name": "doc_5e5_bs2",
-            "lr": 5e-5,
-            "crf_lr": 2.5e-4,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
-        },
-    ]
+    )
 
-    summary_rows = []
+    print(f"\n{'#' * 60}")
+    print(
+        f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
+        f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+    )
+    print(f"{'#' * 60}")
 
-    for cfg in HP_CONFIGS:
-        cfg_name = cfg["name"]
-        lr = cfg["lr"]
-        crf_lr = cfg["crf_lr"]
-        n_epochs = cfg["epochs"]
-        warmup_ratio = cfg["warmup_ratio"]
-        weight_decay = cfg["weight_decay"]
-        batch_size = cfg["batch_size"]
+    reports = []
+    best_val_f1s = []
+    best_epochs = []
 
-        save_run_config(
-            results_dir / f"modernbert_doc_crf_ner_config_{cfg_name}.json",
-            cfg_name,
-            cfg,
-            SEEDS,
-            {
-                "model_id": MODEL_ID,
-                "max_seq_length": MAX_SEQ_LENGTH,
-                "grad_accum_steps": GRAD_ACCUM_STEPS,
-                "script": "train_modernbert_doc_crf_ner.py",
-            },
+    for run, seed in enumerate(SEEDS, 1):
+        print(f"\n{'=' * 50}")
+        print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
+        print("=" * 50)
+        set_seeds_to(seed)
+        loader_generator.manual_seed(seed)
+
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
+            generator=loader_generator,
+        )
+        dev_loader = DataLoader(
+            dev_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
+        )
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
         )
 
-        print(f"\n{'#' * 60}")
+        model = ModernBertTokenCRF(
+            MODEL_ID, trust_remote_code=True
+        ).to(device)
+        model.base.gradient_checkpointing_enable()
+
+        opt_steps_per_epoch = (
+            (len(train_loader) + GRAD_ACCUM_STEPS - 1) // GRAD_ACCUM_STEPS
+        )
+        total_steps = opt_steps_per_epoch * n_epochs
+        warmup_steps = int(warmup_ratio * total_steps)
+        optimizer = build_crf_optimizer(
+            model, lr=lr, crf_lr=crf_lr, weight_decay=weight_decay
+        )
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=total_steps,
+        )
+
+        best_val_f1 = 0.0
+        best_epoch = -1
+        best_state_dict = None
+        for epoch in range(n_epochs):
+            print(f"\nEpoch {epoch + 1}/{n_epochs}")
+            print("-" * 30)
+            train_loss = train_epoch(
+                model, train_loader, optimizer, scheduler, device, CLIP,
+                grad_accum_steps=GRAD_ACCUM_STEPS,
+            )
+            val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
+            print(f"Train Loss: {train_loss:.3f}")
+            print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+            if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                best_epoch = epoch + 1
+                best_state_dict = copy.deepcopy(model.state_dict())
+
+        best_val_f1s.append(best_val_f1)
+        best_epochs.append(best_epoch)
+        if best_state_dict is not None:
+            model.load_state_dict(best_state_dict)
         print(
-            f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
-        )
-        print(f"{'#' * 60}")
-
-        reports = []
-        best_val_f1s = []
-        best_epochs = []
-
-        for run, seed in enumerate(SEEDS, 1):
-            print(f"\n{'=' * 50}")
-            print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
-            print("=" * 50)
-            set_seeds_to(seed)
-            loader_generator.manual_seed(seed)
-
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-                generator=loader_generator,
-            )
-            dev_loader = DataLoader(
-                dev_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-            )
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-            )
-
-            model = ModernBertTokenCRF(
-                MODEL_ID, trust_remote_code=True
-            ).to(device)
-
-            opt_steps_per_epoch = (
-                (len(train_loader) + GRAD_ACCUM_STEPS - 1) // GRAD_ACCUM_STEPS
-            )
-            total_steps = opt_steps_per_epoch * n_epochs
-            warmup_steps = int(warmup_ratio * total_steps)
-            optimizer = build_crf_optimizer(
-                model, lr=lr, crf_lr=crf_lr, weight_decay=weight_decay
-            )
-            scheduler = get_linear_schedule_with_warmup(
-                optimizer,
-                num_warmup_steps=warmup_steps,
-                num_training_steps=total_steps,
-            )
-
-            best_val_f1 = 0.0
-            best_epoch = -1
-            best_state_dict = None
-            for epoch in range(n_epochs):
-                print(f"\nEpoch {epoch + 1}/{n_epochs}")
-                print("-" * 30)
-                train_loss = train_epoch(
-                    model, train_loader, optimizer, scheduler, device, CLIP,
-                    grad_accum_steps=GRAD_ACCUM_STEPS,
-                )
-                val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
-                print(f"Train Loss: {train_loss:.3f}")
-                print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
-                if val_f1 > best_val_f1:
-                    best_val_f1 = val_f1
-                    best_epoch = epoch + 1
-                    best_state_dict = copy.deepcopy(model.state_dict())
-
-            best_val_f1s.append(best_val_f1)
-            best_epochs.append(best_epoch)
-            if best_state_dict is not None:
-                model.load_state_dict(best_state_dict)
-            print(
-                f"[Config {cfg_name}] Seed {seed} best dev F1 "
-                f"{best_val_f1:.4f} at epoch {best_epoch}; "
-                "restored best checkpoint for test evaluation."
-            )
-
-            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
-            report = classification_report(all_true, all_preds, output_dict=True)
-            reports.append(report)
-            del model
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        df = aggregate_reports(reports).set_index("")
-        print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
-        print(df.to_string())
-
-        csv_name = f"modernbert_doc_crf_ner_config_{cfg_name}.csv"
-        df.to_csv(results_dir / csv_name)
-        print(f"Saved to {csv_name}")
-
-        test_micro_f1 = df.loc["micro avg", "f1-score"]
-        dev_f1_mean = float(np.mean(best_val_f1s))
-        dev_f1_std = float(np.std(best_val_f1s))
-        summary_rows.append(
-            {
-                "config": cfg_name,
-                "lr": lr,
-                "crf_lr": crf_lr,
-                "epochs": n_epochs,
-                "warmup_ratio": warmup_ratio,
-                "weight_decay": weight_decay,
-                "batch_size": batch_size,
-                "test_micro_f1": test_micro_f1,
-                "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
-                "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
-            }
+            f"[Config {cfg_name}] Seed {seed} best dev F1 "
+            f"{best_val_f1:.4f} at epoch {best_epoch}; "
+            "restored best checkpoint for test evaluation."
         )
 
-    print("\n" + "=" * 70)
-    print("HYPERPARAMETER SWEEP SUMMARY")
-    print("=" * 70)
-    summary_df = pd.DataFrame(summary_rows)
-    print(summary_df.to_string(index=False))
+        all_preds, all_true = get_predictions(
+            model, test_loader, device, id2label
+        )
+        report = classification_report(all_true, all_preds, output_dict=True)
+        reports.append(report)
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    df = aggregate_reports(reports).set_index("")
+    print(
+        f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) "
+        "— mean ± std ==="
+    )
+    print(df.to_string())
+
+    csv_name = f"{OUTPUT_STEM}.csv"
+    df.to_csv(results_dir / csv_name)
+    print(f"Saved to {csv_name}")
