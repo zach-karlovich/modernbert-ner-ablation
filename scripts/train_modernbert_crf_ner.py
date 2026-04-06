@@ -8,6 +8,7 @@ Senetence-level ModernBERT + constrained CRF.
 - HP sweep
 - JSON config logs
 
+Output stem: `ner_mbert_sent_crf_best.{csv,json}`
 """
 
 import copy
@@ -36,6 +37,7 @@ from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 WORD_PAD_ID = -99
+OUTPUT_STEM = "ner_mbert_sent_crf_best"
 
 
 def parse_conll(filepath):
@@ -299,15 +301,6 @@ if __name__ == "__main__":
 
     HP_CONFIGS = [
         {
-            "name": "0",
-            "lr": 2e-5,
-            "crf_lr": 2e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-        {
             "name": "G",
             "lr": 6e-5,
             "crf_lr": 3e-4,
@@ -331,7 +324,7 @@ if __name__ == "__main__":
         batch_size = cfg["batch_size"]
 
         save_run_config(
-            results_dir / f"modernbert_crf_ner_config_{cfg_name}.json",
+            results_dir / f"{OUTPUT_STEM}.json",
             cfg_name,
             cfg,
             SEEDS,
@@ -426,7 +419,7 @@ if __name__ == "__main__":
         print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
         print(df.to_string())
 
-        csv_name = f"modernbert_crf_ner_config_{cfg_name}.csv"
+        csv_name = f"{OUTPUT_STEM}.csv"
         df.to_csv(results_dir / csv_name)
         print(f"Saved to {csv_name}")
 
