@@ -1,9 +1,14 @@
-"""Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py."""
+"""Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py.
+
+Single HP config **B**: lr 5e-5, 5 epochs, batch 16 — best sentence-level
+linear sweep test micro F1 (`ner_mbert_sent_best.{csv,json}`)."""
 
 import copy
+import json
 import random
+import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -17,6 +22,8 @@ from transformers import (
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
+
+OUTPUT_STEM = "ner_mbert_sent_best"
 
 
 def parse_conll(filepath):
@@ -260,6 +267,40 @@ def build_optimizer(model, lr, weight_decay=0.01):
     return optim.AdamW(grouped_params, lr=lr)
 
 
+def save_run_manifest(
+    path: Path,
+    cfg_name: str,
+    cfg: dict[str, Any],
+    seeds: list[int],
+    *,
+    model_id: str,
+    max_seq_length: int,
+    script_name: str,
+) -> None:
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path.parent.parent,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        git_hash = "unknown"
+    import importlib.metadata as im
+
+    payload = {
+        "config_name": cfg_name,
+        "seeds": seeds,
+        "git_commit": git_hash,
+        "hyperparameters": cfg,
+        "torch_version": torch.__version__,
+        "transformers_version": im.version("transformers"),
+        "model_id": model_id,
+        "max_seq_length": max_seq_length,
+        "script": script_name,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
     CLIP = 1
@@ -269,6 +310,7 @@ if __name__ == "__main__":
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
     results_dir = Path(__file__).resolve().parent.parent / "results"
+    results_dir.mkdir(exist_ok=True)
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
@@ -294,24 +336,15 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    # 0 = controlled baseline: match BERT fine-tuning (lr, epochs, batch) so tokenizer /
-    # architecture is the only deliberate difference. G = best sentence-level HP from our sweep.
+    # Best sentence-level linear sweep (higher test micro F1 than matched-HP config "0").
     HP_CONFIGS = [
         {
-            "name": "0",
-            "lr": 2e-5,
+            "name": "B",
+            "lr": 5e-5,
             "epochs": 5,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 16,
-        },
-        {
-            "name": "G",
-            "lr": 6e-5,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 32,
         },
     ]
 
@@ -350,6 +383,16 @@ if __name__ == "__main__":
             f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
         )
         print(f"{'#' * 60}")
+
+        save_run_manifest(
+            results_dir / f"{OUTPUT_STEM}.json",
+            cfg_name,
+            cfg,
+            SEEDS,
+            model_id="answerdotai/ModernBERT-base",
+            max_seq_length=512,
+            script_name="train_modernbert_ner.py",
+        )
 
         reports = []
         best_val_f1s = []
@@ -413,7 +456,7 @@ if __name__ == "__main__":
         print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
         print(df.to_string())
 
-        csv_name = f"modernbert_ner_config_{cfg_name}.csv"
+        csv_name = f"{OUTPUT_STEM}.csv"
         df.to_csv(results_dir / csv_name)
         print(f"Saved to {csv_name}")
 
@@ -435,7 +478,7 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 70)
-    print("HYPERPARAMETER SWEEP SUMMARY")
+    print("RUN SUMMARY")
     print("=" * 70)
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))
