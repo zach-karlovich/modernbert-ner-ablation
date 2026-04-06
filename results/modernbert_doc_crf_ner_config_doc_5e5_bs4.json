@@ -1,5 +1,5 @@
 {
-  "config_name": "doc_0",
+  "config_name": "doc_5e5_bs4",
   "seeds": [
     21,
     42,
@@ -7,9 +7,9 @@
   ],
   "git_commit": "1941cf8efc60222b6d15ee6c48f321a8c9cb05e9",
   "hyperparameters": {
-    "name": "doc_0",
-    "lr": 2e-05,
-    "crf_lr": 2e-05,
+    "name": "doc_5e5_bs4",
+    "lr": 5e-05,
+    "crf_lr": 0.00025,
     "epochs": 5,
     "warmup_ratio": 0.1,
     "weight_decay": 0.01,
@@ -21,5 +21,5 @@
   "model_id": "answerdotai/ModernBERT-base",
   "max_seq_length": 8192,
   "grad_accum_steps": 4,
-  "script": "train_modernbert_doc_crf_ner_doc0.py"
+  "script": "train_modernbert_doc_crf_ner_doc5e5.py"
 }

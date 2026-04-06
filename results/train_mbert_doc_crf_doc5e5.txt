@@ -1,0 +1,111 @@
+Using device: cuda
+Model: answerdotai/ModernBERT-base, max_seq_length=8192, grad_accum_steps=4
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG doc_5e5_bs4: lr=5e-05, crf_lr=0.00025, epochs=5, warmup=0.1, wd=0.01, bs=4
+############################################################
+
+==================================================
+[Config doc_5e5_bs4] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.131
+Val Loss: 0.031, Val F1: 0.9404
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.031, Val F1: 0.9478
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.030, Val F1: 0.9457
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.031, Val F1: 0.9464
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.032, Val F1: 0.9427
+[Config doc_5e5_bs4] Seed 21 best dev F1 0.9478 at epoch 2; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs4] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.087
+Val Loss: 0.029, Val F1: 0.9435
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.030, Val F1: 0.9501
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.027, Val F1: 0.9525
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.027, Val F1: 0.9516
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.028, Val F1: 0.9521
+[Config doc_5e5_bs4] Seed 42 best dev F1 0.9525 at epoch 3; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs4] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.101
+Val Loss: 0.030, Val F1: 0.9494
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.034, Val F1: 0.9381
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.029, Val F1: 0.9487
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.029, Val F1: 0.9482
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.030, Val F1: 0.9483
+[Config doc_5e5_bs4] Seed 63 best dev F1 0.9494 at epoch 1; restored best checkpoint for test evaluation.
+
+=== Config doc_5e5_bs4 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9217 ± 0.0036  0.9075 ± 0.0007  0.9145 ± 0.0021
+MISC              702  0.7845 ± 0.0339  0.8101 ± 0.0218  0.7963 ± 0.0165
+ORG              1661  0.8611 ± 0.0064  0.8782 ± 0.0159  0.8695 ± 0.0078
+PER              1617  0.9573 ± 0.0131  0.9705 ± 0.0019  0.9638 ± 0.0063
+micro avg        5648  0.8962 ± 0.0068  0.9048 ± 0.0044  0.9005 ± 0.0050
+macro avg        5648  0.8812 ± 0.0101  0.8916 ± 0.0058  0.8860 ± 0.0065
+weighted avg     5648  0.8970 ± 0.0061  0.9048 ± 0.0044  0.9007 ± 0.0049
+Saved to modernbert_doc_crf_ner_config_doc_5e5_bs4.csv
