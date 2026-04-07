@@ -198,7 +198,9 @@ def check_dense_label_roundtrip_datasets() -> None:
         assert collapsed == gold_words, f"sentence idx {i}: {collapsed!r} vs {gold_words!r}"
 
     docs = parse_conll_documents(data_dir / "eng.train")
-    ds_d = ConllDocContextDatasetCRF(docs, tok, max_length=512)
+    ds_d = ConllDocContextDatasetCRF(
+        docs, tok, max_length=512, window_mode="eval"
+    )
     for i in range(min(10, len(ds_d))):
         item = ds_d[i]
         L = int(item["attention_mask"].sum())

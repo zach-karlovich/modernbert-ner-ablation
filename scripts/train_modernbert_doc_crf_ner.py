@@ -15,7 +15,7 @@ import json
 import random
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,14 @@ from dense_bio_labels import (
     word_ids_list_to_tensor_ids,
 )
 from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
+from sliding_window_conll import (
+    DEFAULT_TOKEN_OVERLAP,
+    build_windows_word_ranges,
+    filter_windows_intersecting_target,
+    pick_best_centered_window,
+    prefix_subwords_per_word,
+    word_window_from_start,
+)
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
@@ -95,17 +103,26 @@ def seed_worker(worker_info):
 
 
 class ConllDocContextDatasetCRF(Dataset):
-    def __init__(self, documents, tokenizer, max_length=MAX_SEQ_LENGTH):
+    def __init__(
+        self,
+        documents,
+        tokenizer,
+        max_length=MAX_SEQ_LENGTH,
+        window_mode: Literal["train", "eval"] = "train",
+        token_overlap: int = DEFAULT_TOKEN_OVERLAP,
+    ):
         self.documents = documents
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
+        self.window_mode = window_mode
+        self.token_overlap = token_overlap
+        self._trunc_logged: set[tuple[int, int, int, int]] = set()
 
-        self.targets = []
         self.sent_token_lens = []
         for d_idx, doc in enumerate(documents):
             doc_lens = []
-            for s_idx, sentence in enumerate(doc):
+            for sentence in doc:
                 words = [w for w, _ in sentence]
                 token_len = len(
                     tokenizer(
@@ -115,11 +132,69 @@ class ConllDocContextDatasetCRF(Dataset):
                     )["input_ids"]
                 )
                 doc_lens.append(token_len)
-                self.targets.append((d_idx, s_idx))
             self.sent_token_lens.append(doc_lens)
 
+        self._pack_cache: dict[
+            tuple[int, int], tuple[list[str], list[str], list[bool]]
+        ] = {}
+        self.rows: list[tuple[int, int, int, int]] = []
+        self.n_multi_window_overflow = 0
+
+        for d_idx, doc in enumerate(documents):
+            for s_idx in range(len(doc)):
+                words, tags, is_tw = self._build_packed_lists(d_idx, s_idx)
+                self._pack_cache[(d_idx, s_idx)] = (words, tags, is_tw)
+                prefix = prefix_subwords_per_word(tokenizer, words)
+                budget = max_length - self.special_tokens
+                tw_idx = [i for i, v in enumerate(is_tw) if v]
+                target_lo, target_hi_excl = tw_idx[0], tw_idx[-1] + 1
+
+                if prefix[-1] <= budget:
+                    self.rows.append((d_idx, s_idx, 0, len(words)))
+                else:
+                    ranges = build_windows_word_ranges(
+                        prefix, budget, token_overlap
+                    )
+                    cand = filter_windows_intersecting_target(
+                        ranges, target_lo, target_hi_excl
+                    )
+                    if not cand:
+                        cand = [
+                            word_window_from_start(
+                                prefix, target_lo, budget
+                            )
+                        ]
+                    if len(cand) > 1:
+                        self.n_multi_window_overflow += 1
+                    if window_mode == "train":
+                        for w0, w1 in cand:
+                            self.rows.append((d_idx, s_idx, w0, w1))
+                    else:
+                        w0, w1 = pick_best_centered_window(
+                            prefix, cand, target_lo, target_hi_excl
+                        )
+                        self.rows.append((d_idx, s_idx, w0, w1))
+
+        self.targets = [(d, s) for d, s, _, _ in self.rows]
+        self.n_base_sentences = sum(len(d) for d in documents)
+
     def __len__(self):
-        return len(self.targets)
+        return len(self.rows)
+
+    def _build_packed_lists(
+        self, d_idx: int, s_idx: int
+    ) -> tuple[list[str], list[str], list[bool]]:
+        sentence_ids = self._select_sentence_indices(d_idx, s_idx)
+        words: list[str] = []
+        tags: list[str] = []
+        is_target_word: list[bool] = []
+        for cur_s_idx in sentence_ids:
+            sent = self.documents[d_idx][cur_s_idx]
+            for word, tag in sent:
+                words.append(word)
+                tags.append(tag)
+                is_target_word.append(cur_s_idx == s_idx)
+        return words, tags, is_target_word
 
     def _select_sentence_indices(self, d_idx, s_idx):
         budget = self.max_length - self.special_tokens
@@ -160,50 +235,41 @@ class ConllDocContextDatasetCRF(Dataset):
         return sorted(selected)
 
     def __getitem__(self, idx):
-        d_idx, s_idx = self.targets[idx]
-        sentence_ids = self._select_sentence_indices(d_idx, s_idx)
-
-        words = []
-        tags = []
-        is_target_word = []
-        for cur_s_idx in sentence_ids:
-            sent = self.documents[d_idx][cur_s_idx]
-            for word, tag in sent:
-                words.append(word)
-                tags.append(tag)
-                is_target_word.append(cur_s_idx == s_idx)
-
-        def _current_len():
-            return (
-                len(
-                    self.tokenizer(
-                        words,
-                        is_split_into_words=True,
-                        add_special_tokens=False,
-                    )["input_ids"]
-                )
-                + self.special_tokens
-            )
-
-        while len(words) > 0 and _current_len() > self.max_length:
-            if not is_target_word[0]:
-                words.pop(0)
-                tags.pop(0)
-                is_target_word.pop(0)
-            elif not is_target_word[-1]:
-                words.pop()
-                tags.pop()
-                is_target_word.pop()
-            else:
-                break
+        d_idx, s_idx, w0, w1 = self.rows[idx]
+        words, tags, is_tw = self._pack_cache[(d_idx, s_idx)]
+        words = words[w0:w1]
+        tags = tags[w0:w1]
+        is_target_word = is_tw[w0:w1]
 
         encoding = self.tokenizer(
             words,
             is_split_into_words=True,
             return_tensors="pt",
             padding=False,
-            truncation=True,
+            truncation=False,
             max_length=self.max_length,
+        )
+        n_tok = encoding["input_ids"].shape[-1]
+        if n_tok > self.max_length:
+            encoding = self.tokenizer(
+                words,
+                is_split_into_words=True,
+                return_tensors="pt",
+                padding=False,
+                truncation=True,
+                max_length=self.max_length,
+            )
+            key = (d_idx, s_idx, w0, w1)
+            if key not in self._trunc_logged:
+                self._trunc_logged.add(key)
+                print(
+                    "WARNING: truncation fallback for row "
+                    f"{key} (len was {n_tok})"
+                )
+            n_tok = encoding["input_ids"].shape[-1]
+
+        assert n_tok <= self.max_length, (
+            f"sequence length {n_tok} > max_length {self.max_length}"
         )
 
         word_ids = encoding.word_ids()
@@ -460,14 +526,37 @@ if __name__ == "__main__":
         tokenizer.pad_token = tokenizer.eos_token
 
     train_dataset = ConllDocContextDatasetCRF(
-        train_docs, tokenizer, max_length=MAX_SEQ_LENGTH
+        train_docs,
+        tokenizer,
+        max_length=MAX_SEQ_LENGTH,
+        window_mode="train",
+        token_overlap=DEFAULT_TOKEN_OVERLAP,
     )
     dev_dataset = ConllDocContextDatasetCRF(
-        dev_docs, tokenizer, max_length=MAX_SEQ_LENGTH
+        dev_docs,
+        tokenizer,
+        max_length=MAX_SEQ_LENGTH,
+        window_mode="eval",
+        token_overlap=DEFAULT_TOKEN_OVERLAP,
     )
     test_dataset = ConllDocContextDatasetCRF(
-        test_docs, tokenizer, max_length=MAX_SEQ_LENGTH
+        test_docs,
+        tokenizer,
+        max_length=MAX_SEQ_LENGTH,
+        window_mode="eval",
+        token_overlap=DEFAULT_TOKEN_OVERLAP,
     )
+    for name, ds in (
+        ("Train", train_dataset),
+        ("Dev", dev_dataset),
+        ("Test", test_dataset),
+    ):
+        print(
+            f"{name} dataset: base_sentences={ds.n_base_sentences} "
+            f"rows={len(ds)} "
+            f"multi_window_overflow_sources={ds.n_multi_window_overflow} "
+            f"window_mode={ds.window_mode} overlap={ds.token_overlap}"
+        )
 
     collate_fn = ConllDocCollatorCRF(
         tokenizer.pad_token_id, label_pad_id=label2id["O"]
@@ -494,6 +583,19 @@ if __name__ == "__main__":
             "max_seq_length": MAX_SEQ_LENGTH,
             "grad_accum_steps": GRAD_ACCUM_STEPS,
             "script": SCRIPT_NAME,
+            "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
+            "dataset_train_rows": len(train_dataset),
+            "dataset_dev_rows": len(dev_dataset),
+            "dataset_test_rows": len(test_dataset),
+            "dataset_train_multi_window_overflow": (
+                train_dataset.n_multi_window_overflow
+            ),
+            "dataset_dev_multi_window_overflow": (
+                dev_dataset.n_multi_window_overflow
+            ),
+            "dataset_test_multi_window_overflow": (
+                test_dataset.n_multi_window_overflow
+            ),
         },
     )
 
