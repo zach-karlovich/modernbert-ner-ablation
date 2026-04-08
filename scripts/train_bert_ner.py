@@ -1,8 +1,13 @@
-"""Fine-tune bert-base-cased on CoNLL-2003 NER. Patterns from deep learning coursework assignment 2 and 3.
-Classification report logic copied from notebooks/00bert_baseline.ipynb.
+"""Fine-tune bert-base-cased on CoNLL-2003 NER.
 
-Single HP config **0**: lr 2e-5, 5 epochs, batch 16 (reference BERT row;
-writes `ner_bert_ref.{csv,json}`)."""
+Patterns from deep learning coursework assignment 2 and 3; classification report
+logic from notebooks/00bert_baseline.ipynb.
+
+Run identity: sentence-level examples only (`parse_conll` skips `-DOCSTART-`);
+softmax token head; seqeval F1. Reference encoder for the ModernBERT ablation.
+Outputs `ner_bert_ref.{csv,json}`. HPs live in `HP_CONFIGS` below (default
+`max_seq_length` 128 is standard for CoNLL sentence NER; use 512 there if you
+want zero truncation margin)."""
 
 import copy
 import json
@@ -25,6 +30,12 @@ from transformers import (
 )
 
 OUTPUT_STEM = "ner_bert_ref"
+
+RUN_DESCRIPTION = (
+    "Sentence-level bert-base-cased on CoNLL-2003; softmax head; -DOCSTART- "
+    "ignored so no cross-sentence context. NER-style finetune HPs (see JSON). "
+    "Writes ner_bert_ref.{csv,json}."
+)
 
 
 def parse_conll(filepath):
@@ -268,6 +279,7 @@ def save_run_manifest(
     model_id: str,
     max_seq_length: int,
     script_name: str,
+    run_description: str,
 ) -> None:
     try:
         git_hash = subprocess.check_output(
@@ -289,6 +301,7 @@ def save_run_manifest(
         "model_id": model_id,
         "max_seq_length": max_seq_length,
         "script": script_name,
+        "run_description": run_description,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -297,6 +310,7 @@ if __name__ == "__main__":
     SEEDS = [21, 42, 63]
     CLIP = 1
     torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -311,24 +325,22 @@ if __name__ == "__main__":
     print(f"Test: {len(test_sentences)} sentences")
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
-    dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
-    test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
 
-    # Best-tuned reference
     HP_CONFIGS = [
         {
-            "name": "0",
-            "lr": 2e-5,
+            "name": "aligned",
+            "lr": 5e-5,
             "epochs": 5,
             "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
+            "weight_decay": 1e-5,
+            "batch_size": 32,
+            "max_seq_length": 128,
         },
     ]
 
     summary_rows = []
-    prev_batch_size = None
+    prev_max_seq: int | None = None
+    loader_generator = torch.Generator()
 
     for cfg in HP_CONFIGS:
         cfg_name = cfg["name"]
@@ -337,40 +349,39 @@ if __name__ == "__main__":
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        max_seq_length = cfg["max_seq_length"]
 
-        if batch_size != prev_batch_size:
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                collate_fn=collate_fn,
+        if max_seq_length != prev_max_seq:
+            train_dataset = ConllDataset(
+                train_sentences, tokenizer, label2id, max_length=max_seq_length
             )
-            dev_loader = DataLoader(
-                dev_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+            dev_dataset = ConllDataset(
+                dev_sentences, tokenizer, label2id, max_length=max_seq_length
             )
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
+            test_dataset = ConllDataset(
+                test_sentences, tokenizer, label2id, max_length=max_seq_length
             )
-            prev_batch_size = batch_size
+            prev_max_seq = max_seq_length
+
+        manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
 
         print(f"\n{'#' * 60}")
         print(
             f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
+            f"max_seq_length={max_seq_length}, clip={CLIP}"
         )
         print(f"{'#' * 60}")
 
         save_run_manifest(
             results_dir / f"{OUTPUT_STEM}.json",
             cfg_name,
-            cfg,
+            manifest_hp,
             SEEDS,
             model_id="bert-base-cased",
-            max_seq_length=512,
+            max_seq_length=max_seq_length,
             script_name="train_bert_ner.py",
+            run_description=RUN_DESCRIPTION,
         )
 
         reports = []
@@ -382,6 +393,26 @@ if __name__ == "__main__":
             print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
             print("=" * 50)
             set_seeds_to(seed)
+            loader_generator.manual_seed(seed)
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                collate_fn=collate_fn,
+                generator=loader_generator,
+            )
+            dev_loader = DataLoader(
+                dev_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=collate_fn,
+            )
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=collate_fn,
+            )
 
             model = AutoModelForTokenClassification.from_pretrained(
                 "bert-base-cased",
@@ -450,6 +481,8 @@ if __name__ == "__main__":
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
+                "max_seq_length": max_seq_length,
+                "gradient_clip": CLIP,
                 "test_micro_f1": test_micro_f1,
                 "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
