@@ -1,7 +1,9 @@
 """Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py.
 
-Single HP config **B**: lr 5e-5, 5 epochs, batch 16 — best sentence-level
-linear sweep test micro F1 (`ner_mbert_sent_best.{csv,json}`)."""
+Run identity: sentence-level (`parse_conll` skips `-DOCSTART-`); softmax head; seqeval.
+Sentence side of the factorial vs doc-context + CRF runs. Config **B** in `HP_CONFIGS`
+(lr 5e-5, batch 16) — best sentence-level linear sweep test micro F1.
+Outputs `ner_mbert_sent_best.{csv,json}`."""
 
 import copy
 import json
@@ -24,6 +26,11 @@ from transformers import (
 )
 
 OUTPUT_STEM = "ner_mbert_sent_best"
+
+RUN_DESCRIPTION = (
+    "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. "
+    "Config B in HP_CONFIGS. Writes ner_mbert_sent_best.{csv,json}."
+)
 
 
 def parse_conll(filepath):
@@ -276,6 +283,7 @@ def save_run_manifest(
     model_id: str,
     max_seq_length: int,
     script_name: str,
+    run_description: str,
 ) -> None:
     try:
         git_hash = subprocess.check_output(
@@ -297,6 +305,7 @@ def save_run_manifest(
         "model_id": model_id,
         "max_seq_length": max_seq_length,
         "script": script_name,
+        "run_description": run_description,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -330,13 +339,8 @@ if __name__ == "__main__":
     #     for i, (tok, wid) in enumerate(zip(tokens, word_ids)):
     #         print(f"{i}: {tok!r} -> word_id={wid}")
 
-    train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
-    dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
-    test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
-
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    # Best sentence-level linear sweep (higher test micro F1 than matched-HP config "0").
     HP_CONFIGS = [
         {
             "name": "B",
@@ -345,11 +349,13 @@ if __name__ == "__main__":
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 16,
+            "max_seq_length": 512,
         },
     ]
 
     summary_rows = []
     prev_batch_size = None
+    prev_max_seq: int | None = None
 
     for cfg in HP_CONFIGS:
         cfg_name = cfg["name"]
@@ -358,6 +364,19 @@ if __name__ == "__main__":
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        max_seq_length = cfg["max_seq_length"]
+
+        if max_seq_length != prev_max_seq:
+            train_dataset = ConllDataset(
+                train_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            dev_dataset = ConllDataset(
+                dev_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            test_dataset = ConllDataset(
+                test_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            prev_max_seq = max_seq_length
 
         if batch_size != prev_batch_size:
             train_loader = DataLoader(
@@ -377,21 +396,25 @@ if __name__ == "__main__":
             )
             prev_batch_size = batch_size
 
+        manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
+
         print(f"\n{'#' * 60}")
         print(
             f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
+            f"max_seq_length={max_seq_length}, clip={CLIP}"
         )
         print(f"{'#' * 60}")
 
         save_run_manifest(
             results_dir / f"{OUTPUT_STEM}.json",
             cfg_name,
-            cfg,
+            manifest_hp,
             SEEDS,
             model_id="answerdotai/ModernBERT-base",
-            max_seq_length=512,
+            max_seq_length=max_seq_length,
             script_name="train_modernbert_ner.py",
+            run_description=RUN_DESCRIPTION,
         )
 
         reports = []
@@ -471,6 +494,8 @@ if __name__ == "__main__":
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
+                "max_seq_length": max_seq_length,
+                "gradient_clip": CLIP,
                 "test_micro_f1": test_micro_f1,
                 "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",

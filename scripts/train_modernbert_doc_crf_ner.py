@@ -1,14 +1,8 @@
-"""
-Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with document context.
+"""Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with document context (8192).
 
-Document-level ModernBERT + constrained CRF.
-
-Optimizations:
-- bf16 autocast (CRF emissions kept in fp32 via model)
-- gradient checkpointing
-- batch_size 4, grad_accum 4 (effective batch 16)
-- pin_memory on DataLoaders
-"""
+Run identity: `-DOCSTART-` sliding windows; CRF head; Doc.+CRF factorial cell. Rivanna-oriented
+opts: bf16 autocast, gradient checkpointing, batch 4 × grad_accum 4 (effective 16), pin_memory.
+Output `ner_mbert_doc_crf_tuned.{csv,json}`; HP in `HP_CONFIG`."""
 
 import copy
 import json
@@ -47,6 +41,11 @@ MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 4
 WORD_PAD_ID = -99
 OUTPUT_STEM = "ner_mbert_doc_crf_tuned"
+
+RUN_DESCRIPTION = (
+    "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config "
+    "doc_5e5_bs4 in HP_CONFIG. Writes ner_mbert_doc_crf_tuned.{csv,json}."
+)
 
 
 def parse_conll_documents(filepath):
@@ -583,6 +582,7 @@ if __name__ == "__main__":
             "max_seq_length": MAX_SEQ_LENGTH,
             "grad_accum_steps": GRAD_ACCUM_STEPS,
             "script": SCRIPT_NAME,
+            "run_description": RUN_DESCRIPTION,
             "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
             "dataset_train_rows": len(train_dataset),
             "dataset_dev_rows": len(dev_dataset),

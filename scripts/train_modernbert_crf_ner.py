@@ -1,15 +1,7 @@
-"""
-Fine-tune ModernBERT-base + constrained CRF on CoNLL-2003 NER (sentence-level).
+"""Fine-tune ModernBERT-base + linear-chain CRF on CoNLL-2003 NER (sentence-level).
 
-Senetence-level ModernBERT + constrained CRF.
-
-- dataloading
-- train/eval/test with seqeval
-- HP sweep
-- JSON config logs
-
-Output stem: `ner_mbert_sent_crf_best.{csv,json}`
-"""
+Run identity: sentence-level; CRF decoder; dense BIO labels; seqeval. Sent.+CRF cell of
+the factorial. Output stem `ner_mbert_sent_crf_best.{csv,json}`; HPs in `HP_CONFIGS`."""
 
 import copy
 import json
@@ -38,6 +30,11 @@ from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 MODEL_ID = "answerdotai/ModernBERT-base"
 WORD_PAD_ID = -99
 OUTPUT_STEM = "ner_mbert_sent_crf_best"
+
+RUN_DESCRIPTION = (
+    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G in HP_CONFIGS. "
+    "Writes ner_mbert_sent_crf_best.{csv,json}."
+)
 
 
 def parse_conll(filepath):
@@ -332,6 +329,7 @@ if __name__ == "__main__":
                 "model_id": MODEL_ID,
                 "max_seq_length": 512,
                 "script": "train_modernbert_crf_ner.py",
+                "run_description": RUN_DESCRIPTION,
             },
         )
 

@@ -1,10 +1,9 @@
-"""
-Fine-tune ModernBERT-base on CoNLL-2003 NER with in-document context (8192 tokens).
+"""Fine-tune ModernBERT-base on CoNLL-2003 NER with in-document context (8192 tokens).
 
-Single HP config **doc_4e5_bs2**: lr 4e-5 — best test micro F1 in the doc-context linear sweep
-(`ner_mbert_doc_best.{csv,json}`; internal config label `doc_4e5_bs2`).
-For lr 5e-5 use a one-off rename or restore sweep list.
-"""
+Run identity: `-DOCSTART-` respected; sliding windows; softmax head; seqeval. Doc side of
+the 2×2 ablation vs sentence-level + CRF variants. Single HP config **doc_4e5_bs2**
+(lr 4e-5) — best test micro F1 in the doc-context linear sweep. Outputs
+`ner_mbert_doc_best.{csv,json}`. For lr 5e-5 use a one-off rename or restore sweep list."""
 
 import copy
 import json
@@ -39,6 +38,12 @@ MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 8
 OUTPUT_STEM = "ner_mbert_doc_best"
+
+RUN_DESCRIPTION = (
+    "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window "
+    "packing like BERT doc script but full long context. Config doc_4e5_bs2 in "
+    "HP_CONFIGS. Writes ner_mbert_doc_best.{csv,json}."
+)
 
 
 def parse_conll_documents(filepath):
@@ -491,6 +496,7 @@ def save_run_manifest(
     max_seq_length: int,
     grad_accum_steps: int,
     script_name: str,
+    run_description: str,
     extra: dict[str, Any] | None = None,
 ) -> None:
     try:
@@ -514,6 +520,7 @@ def save_run_manifest(
         "max_seq_length": max_seq_length,
         "grad_accum_steps": grad_accum_steps,
         "script": script_name,
+        "run_description": run_description,
     }
     if extra:
         payload.update(extra)
@@ -614,21 +621,31 @@ if __name__ == "__main__":
         batch_size = cfg["batch_size"]
 
         print(f"\n{'#' * 60}")
+        manifest_hp = {
+            **cfg,
+            "gradient_clip": CLIP,
+            "context": "document",
+            "max_seq_length": MAX_SEQ_LENGTH,
+            "grad_accum_steps": GRAD_ACCUM_STEPS,
+        }
         print(
             f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
+            f"max_seq_length={MAX_SEQ_LENGTH}, clip={CLIP}, "
+            f"grad_accum={GRAD_ACCUM_STEPS}"
         )
         print(f"{'#' * 60}")
 
         save_run_manifest(
             results_dir / f"{OUTPUT_STEM}.json",
             cfg_name,
-            cfg,
+            manifest_hp,
             SEEDS,
             model_id=MODEL_ID,
             max_seq_length=MAX_SEQ_LENGTH,
             grad_accum_steps=GRAD_ACCUM_STEPS,
             script_name="train_modernbert_doc_ner.py",
+            run_description=RUN_DESCRIPTION,
             extra={
                 "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
                 "dataset_train_rows": len(train_dataset),
@@ -761,6 +778,9 @@ if __name__ == "__main__":
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
+                "max_seq_length": MAX_SEQ_LENGTH,
+                "grad_accum_steps": GRAD_ACCUM_STEPS,
+                "gradient_clip": CLIP,
                 "test_micro_f1": test_micro_f1,
                 "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
