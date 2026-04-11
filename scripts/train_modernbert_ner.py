@@ -25,7 +25,11 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from conll2003_expectations import assert_conll2003_dataset
+from conll2003_expectations import (
+    assert_conll2003_dataset,
+    assert_parsed_sentence_counts_match_expected,
+)
+from conll2003_parse import parse_conll
 
 OUTPUT_STEM = "ner_mbert_sent_best"
 
@@ -33,29 +37,6 @@ RUN_DESCRIPTION = (
     "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. "
     "Config B in HP_CONFIGS. Writes ner_mbert_sent_best.{csv,json}."
 )
-
-
-def parse_conll(filepath):
-    """00bert_baseline. Sentence-level, skips -DOCSTART-."""
-    sentences = []
-    current = []
-    with open(filepath) as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                word = parts[0]
-                ner = parts[-1]
-                current.append((word, ner))
-        if current:
-            sentences.append(current)
-    return sentences
 
 
 label_list = [
@@ -327,6 +308,9 @@ if __name__ == "__main__":
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
+    assert_parsed_sentence_counts_match_expected(
+        len(train_sentences), len(dev_sentences), len(test_sentences)
+    )
     print(f"Train: {len(train_sentences)} sentences")
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
