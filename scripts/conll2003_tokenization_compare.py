@@ -2,6 +2,8 @@ from pathlib import Path
 
 from transformers import AutoTokenizer
 
+from conll2003_parse import parse_conll
+
 root = Path.cwd() if (Path.cwd() / "pyproject.toml").exists() else Path.cwd().parent
 out = root / "data" / "conll2003"
 
@@ -14,28 +16,6 @@ assert not missing, (
 
 SPLIT_NAMES = {"eng.train": "train", "eng.testa": "validation", "eng.testb": "test"}
 MAX_LENGTH = 512
-
-
-def parse_conll(filepath):
-    sentences = []
-    current = []
-    with open(filepath, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                word = parts[0]
-                ner = parts[-1]
-                current.append((word, ner))
-        if current:
-            sentences.append(current)
-    return sentences
 
 
 def subword_counts_per_word(encoding, n_words):

@@ -172,7 +172,8 @@ def check_dense_label_roundtrip_manual() -> None:
 def check_dense_label_roundtrip_datasets() -> None:
     from transformers import AutoTokenizer
 
-    from train_modernbert_crf_ner import ConllDatasetCRF, parse_conll
+    from conll2003_parse import parse_conll
+    from train_modernbert_crf_ner import ConllDatasetCRF
     from train_modernbert_doc_crf_ner import ConllDocContextDatasetCRF, parse_conll_documents
 
     id2label = {i: label for i, label in enumerate(label_list)}
