@@ -1,57 +1,23 @@
+"""CLI: verify data/conll2003 matches original Kaggle CoNLL-2003 release."""
+
+from __future__ import annotations
+
+import sys
 from pathlib import Path
-from collections import Counter
 
-root = Path.cwd() if (Path.cwd() / "pyproject.toml").exists() else Path.cwd().parent
-out = root / "data" / "conll2003"
-
-required = ["eng.train", "eng.testa", "eng.testb"]
-missing = [n for n in required if not (out / n).exists()]
-assert not missing, (
-    f"CoNLL-2003 data not found at {out}. Missing: {missing}. "
-    "Run: python scripts/download_data.py to download and save data to data/conll2003/"
+from conll2003_expectations import (
+    assert_conll2003_dataset,
+    print_verification_report,
 )
 
-EXPECTED = {"eng.train": 14987, "eng.testa": 3466, "eng.testb": 3684}
-DOCSTART_EXPECTED = {"eng.train": 946, "eng.testa": 216, "eng.testb": 231}
+_here = Path.cwd()
+root = _here if (_here / "pyproject.toml").exists() else _here.parent
+data_dir = root / "data" / "conll2003"
 
-
-def count_sentences(filepath):
-    return sum(1 for line in filepath.open(encoding="utf-8") if line.strip() == "")
-
-
-def count_entities(filepath):
-    counts = Counter()
-    with open(filepath, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line == "" or line.startswith("-DOCSTART-"):
-                continue
-            ner_tag = line.split()[-1]
-            if not ner_tag.startswith("B-"):
-                continue
-            entity_type = ner_tag.split("-", 1)[1]
-            counts[entity_type] += 1
-    return counts
-
-
-def count_docstart(filepath):
-    return sum(1 for line in filepath.open(encoding="utf-8") if line.startswith("-DOCSTART-"))
-
-
-print("CoNLL-2003 verification (data/conll2003/):")
-for name in required:
-    n = count_sentences(out / name)
-    exp = EXPECTED[name]
-    status = "PASS" if n == exp else "FAIL"
-    print(f"  {name}: {n} sentences (expected {exp}) {status}")
-
-print("\nEntity spans (B- tags):")
-for name, split in [("eng.train", "train"), ("eng.testa", "validation"), ("eng.testb", "test")]:
-    counts = count_entities(out / name)
-    print(f"  {split}: PER={counts['PER']} ORG={counts['ORG']} LOC={counts['LOC']} MISC={counts['MISC']}")
-
-print("\nDOCSTART:")
-for name in required:
-    n = count_docstart(out / name)
-    exp = DOCSTART_EXPECTED[name]
-    print(f"  {name}: {n} (expected {exp})")
+if __name__ == "__main__":
+    try:
+        assert_conll2003_dataset(data_dir)
+    except (FileNotFoundError, ValueError) as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+    print_verification_report(data_dir)
