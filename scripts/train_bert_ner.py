@@ -29,6 +29,8 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from conll2003_expectations import assert_conll2003_dataset
+
 OUTPUT_STEM = "ner_bert_ref"
 
 RUN_DESCRIPTION = (
@@ -315,6 +317,8 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
     train_sentences = parse_conll(data_dir / "eng.train")
