@@ -25,6 +25,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from conll2003_expectations import assert_conll2003_dataset
 from sliding_window_conll import (
     DEFAULT_TOKEN_OVERLAP,
     build_windows_word_ranges,
@@ -37,12 +38,12 @@ from sliding_window_conll import (
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 8
-OUTPUT_STEM = "ner_mbert_doc_best"
+OUTPUT_STEM = "ner_mbert_doc_v2"
 
 RUN_DESCRIPTION = (
     "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window "
-    "packing like BERT doc script but full long context. Config doc_4e5_bs2 in "
-    "HP_CONFIGS. Writes ner_mbert_doc_best.{csv,json}."
+    "packing. Config doc_4e5_bs2_v2: classifier_dropout 0.1, wd 0.05, 10 epochs + "
+    "early stopping (patience 3). Writes ner_mbert_doc_v2.{csv,json}."
 )
 
 
@@ -543,6 +544,8 @@ if __name__ == "__main__":
     )
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
 
@@ -600,12 +603,14 @@ if __name__ == "__main__":
 
     HP_CONFIGS = [
         {
-            "name": "doc_4e5_bs2",
+            "name": "doc_4e5_bs2_v2",
             "lr": 4e-5,
-            "epochs": 5,
+            "epochs": 10,
+            "early_stopping_patience": 3,
             "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
+            "weight_decay": 0.05,
             "batch_size": 2,
+            "classifier_dropout": 0.1,
         },
     ]
 
@@ -619,6 +624,8 @@ if __name__ == "__main__":
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        early_stopping_patience = cfg.get("early_stopping_patience")
+        classifier_dropout = cfg.get("classifier_dropout")
 
         print(f"\n{'#' * 60}")
         manifest_hp = {
@@ -628,9 +635,19 @@ if __name__ == "__main__":
             "max_seq_length": MAX_SEQ_LENGTH,
             "grad_accum_steps": GRAD_ACCUM_STEPS,
         }
+        es_note = (
+            f", early_stopping_patience={early_stopping_patience}"
+            if early_stopping_patience is not None
+            else ""
+        )
+        cd_note = (
+            f", classifier_dropout={classifier_dropout}"
+            if classifier_dropout is not None
+            else ""
+        )
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
+            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}{es_note}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}{cd_note}, "
             f"max_seq_length={MAX_SEQ_LENGTH}, clip={CLIP}, "
             f"grad_accum={GRAD_ACCUM_STEPS}"
         )
@@ -704,12 +721,16 @@ if __name__ == "__main__":
                 worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
             )
 
+            model_kwargs: dict[str, object] = {}
+            if classifier_dropout is not None:
+                model_kwargs["classifier_dropout"] = classifier_dropout
             model = AutoModelForTokenClassification.from_pretrained(
                 MODEL_ID,
                 num_labels=len(label_list),
                 id2label=id2label,
                 label2id=label2id,
                 trust_remote_code=True,
+                **model_kwargs,
             ).to(device)
 
             opt_steps_per_epoch = (
@@ -727,6 +748,7 @@ if __name__ == "__main__":
             best_val_f1 = 0.0
             best_epoch = -1
             best_state_dict = None
+            epochs_no_improve = 0
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -741,6 +763,18 @@ if __name__ == "__main__":
                     best_val_f1 = val_f1
                     best_epoch = epoch + 1
                     best_state_dict = copy.deepcopy(model.state_dict())
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+                    if (
+                        early_stopping_patience is not None
+                        and epochs_no_improve >= early_stopping_patience
+                    ):
+                        print(
+                            f"Early stopping: no dev F1 improvement for "
+                            f"{early_stopping_patience} epoch(s)."
+                        )
+                        break
 
             best_val_f1s.append(best_val_f1)
             best_epochs.append(best_epoch)
