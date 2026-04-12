@@ -1,6 +1,6 @@
 # ModernBERT NER Ablation
 
-**_IN PROGRESS_**
+BERT and ModernBERT results (linear and CRF heads, sentence and document context) live under [`results/`](results/) (see **Results**).
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
@@ -17,49 +17,51 @@ We use two factors:
 - Document context: off/on
 - CRF decoding head: off/on
 
-This yields four configurations:
+![2×2 factorial: rows = sentence vs document context; columns = softmax vs CRF. Config A baseline (softmax, sentence); B +CRF only; C +document context only; D +document context +CRF.](images/ner_ablation_2x2.png)
 
-1. Baseline ModernBERT (sentence-level, no CRF)
-2. ModernBERT + document context
-3. ModernBERT + CRF
-4. ModernBERT + document context + CRF
+*Figure: Same design as the list below—**A** = baseline (sentence, softmax), **B** = +CRF only, **C** = +document context only, **D** = +document context and CRF.*
+
+This yields four configurations (same labels as the figure, row-major: A and B on the sentence row, C and D on the document row):
+
+1. **Config A —** Baseline ModernBERT (sentence-level, softmax; no CRF)
+2. **Config B —** ModernBERT + CRF (sentence-level)
+3. **Config C —** ModernBERT + document context (softmax)
+4. **Config D —** ModernBERT + document context + CRF
 
 Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/LOC/MISC.
 
 ## Results
 
-**Last updated:** 2026-04-04 (aligned with [results/results_summary.md](results/results_summary.md)).
+**Last updated:** 2026-04-11. Primary metrics below come from the checked-in aggregates [`results/ner_bert_ref.csv`](results/ner_bert_ref.csv), [`results/ner_mbert_sent_best.csv`](results/ner_mbert_sent_best.csv), and [`results/ner_mbert_doc_best.csv`](results/ner_mbert_doc_best.csv); paired [`results/*.json`](results/) manifests record hyperparameters, seeds, and provenance. Older sweep tables and archived CSVs under [`results/old/`](results/old/) are not used for these headline numbers.
 
-Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Mean ± std over 3 seeds (21, 42, 63). For each seed, **test evaluation uses the checkpoint with highest dev F1** on `eng.testa`.
+Numbers below are from `results/ner_*.csv` (mean ± std over seeds 21, 42, 63). Each row has a matching `results/ner_*.json` with full hyperparameters, seeds, and run metadata. Older sweeps: [`results/old/`](results/old/).
 
-**BERT** and sentence-level **ModernBERT (config 0)** use the **matched-HP** recipe: LR **2e-5**, **5** epochs, batch **16**. **ModernBERT + document** uses LR **5e-5**, batch **2**, **8192** max length, grad accumulation **8** ([`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv))—not matched to the sentence baselines. HP sweep (e.g. sentence **config B** at **0.8984** micro F1), tuned BERT, and CRF ablations are in [results/results_summary.md](results/results_summary.md) and [results/results_summary.csv](results/results_summary.csv).
+Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Per seed, evaluation uses the checkpoint with **best dev F1** on `eng.testa`. Rows are **not** matched for a single fair comparison (context length, batch, linear vs CRF vary); use the JSONs for exact settings.
 
 ### Overall F1
 
-| Model                                                  | Micro F1        | Macro F1        |
-| ------------------------------------------------------ | --------------- | --------------- |
-| BERT-base-cased (sentence-level, no CRF)               | 0.9128 ± 0.0025 | 0.8969 ± 0.0025 |
-| ModernBERT-base (sentence-level, matched HP, config 0) | 0.8862 ± 0.0023 | 0.8720 ± 0.0024 |
-| ModernBERT-base + document context                     | 0.9162 ± 0.0017 | 0.9004 ± 0.0015 |
-| ModernBERT-base + CRF (sentence-level)                 | —               | —               |
-| ModernBERT-base + document context + CRF               | —               | —               |
+| Model                                                  | Micro F1            | Macro F1            |
+| ------------------------------------------------------ | ------------------- | ------------------- |
+| BERT-base-cased (sentence-level, no CRF)               | 0.9135 ± 0.0021     | 0.8978 ± 0.0026     |
+| ModernBERT-base (sentence-level, config B)             | 0.8962 ± 0.0013     | 0.8824 ± 0.0008     |
+| ModernBERT-base + document context                     | **0.9142 ± 0.0012** | **0.8986 ± 0.0011** |
+| ModernBERT-base + CRF (sentence-level, config G)       | 0.9015 ± 0.0021     | 0.8887 ± 0.0026     |
+| ModernBERT-base + document context + CRF (doc_5e5_bs4) | 0.9012 ± 0.0013     | 0.8843 ± 0.0022     |
 
 ### Per-entity F1
 
-Entity order: PER, ORG, LOC, MISC. BERT and sentence ModernBERT cells match [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv) and [`results/modernbert_ner_config_0.csv`](results/modernbert_ner_config_0.csv). Document column: [`results/modernbert_doc_ner_config_doc_5e5_bs2.csv`](results/modernbert_doc_ner_config_doc_5e5_bs2.csv).
+Entity order: PER, ORG, LOC, MISC.
 
-| Entity | BERT                | ModernBERT (sentence, config 0) | ModernBERT (document) | ModernBERT (sentence + CRF) | ModernBERT (document + CRF) |
-| ------ | ------------------- | ------------------------------- | --------------------- | --------------------------- | --------------------------- |
-| PER    | 0.9622 ± 0.0019     | 0.9528 ± 0.0035                 | **0.9808** ± 0.0022   | —                           | —                           |
-| ORG    | **0.8975** ± 0.0037 | 0.8458 ± 0.0030                 | 0.8942 ± 0.0041       | —                           | —                           |
-| LOC    | **0.9305** ± 0.0025 | 0.9100 ± 0.0021                 | 0.9268 ± 0.0016       | —                           | —                           |
-| MISC   | 0.7973 ± 0.0021     | 0.7796 ± 0.0045                 | **0.7999** ± 0.0008   | —                           | —                           |
+| Entity | BERT                | ModernBERT (sentence, config B) | ModernBERT (document) | ModernBERT (sentence + CRF, G) | ModernBERT (document + CRF) |
+| ------ | ------------------- | ------------------------------- | --------------------- | ------------------------------ | --------------------------- |
+| PER    | 0.9602 ± 0.0020     | 0.9576 ± 0.0014                 | **0.9805** ± 0.0014   | 0.9559 ± 0.0016                | 0.9707 ± 0.0043             |
+| ORG    | **0.8990** ± 0.0018 | 0.8632 ± 0.0048                 | 0.8903 ± 0.0028       | 0.8682 ± 0.0043                | 0.8734 ± 0.0004             |
+| LOC    | **0.9320** ± 0.0008 | 0.9150 ± 0.0013                 | 0.9238 ± 0.0018       | 0.9233 ± 0.0022                | 0.9170 ± 0.0008             |
+| MISC   | 0.8000 ± 0.0070     | 0.7939 ± 0.0021                 | 0.7999 ± 0.0026       | **0.8072** ± 0.0059            | 0.7759 ± 0.0099             |
 
 ## Planned Final Model
 
-ModernBERT with document-level context and a CRF decoding head, evaluated against the sentence-level ModernBERT baseline and single-factor variants.
-
-### How to Load
+Reported above: full **2×2** over document context and CRF (linear vs CRF heads), plus BERT sentence baseline. Document **linear** head achieves the highest test micro F1 in this table; document **CRF** is slightly below both document linear and sentence CRF on micro F1.
 
 ## Environment Setup
 
@@ -70,40 +72,60 @@ uv python install 3.14
 uv sync
 ```
 
-### UVA HPC Rivanna Setup
+### Dataset download
+
+Training expects **CoNLL-2003** files (`eng.train`, `eng.testa`, `eng.testb`) under [`data/conll2003/`](data/conll2003/). From the project root (where `pyproject.toml` lives), fetch them with [`scripts/download_data.py`](scripts/download_data.py):
 
 ```bash
-module load uv/0.9.9
-uv sync
+uv run python scripts/download_data.py
 ```
 
-### Run notebooks
+The script uses [kagglehub](https://github.com/Kaggle/kagglehub) to download [juliangarratt/conll2003-dataset](https://www.kaggle.com/datasets/juliangarratt/conll2003-dataset) and copies the three splits into `data/conll2003/`. Configure [Kaggle API credentials](https://www.kaggle.com/docs/api) locally if prompted; do not commit tokens.
 
-```bash
-uv run jupyter lab
-```
+### Project layout
 
-If you use Kaggle data access, configure Kaggle API credentials locally and do not commit tokens.
-
-### Directory Structure
-
+- [`data/conll2003/`](data/conll2003/): CoNLL-2003 splits (from **Dataset download** above)
+- [`scripts/`](scripts/): training, verification, and data helpers
+- [`results/`](results/): run metrics and archived sweeps under `results/old/`
+- [`images/`](images/): figures for docs
 - `notebooks/`: experiment notebooks and ablations
 - `references/`: bibliography sources
 - `documents/`: milestone and supporting course documents
-- `results/`: training run outputs
 
 ## Training
 
-Training scripts live under `scripts/`: [`train_bert_ner.py`](scripts/train_bert_ner.py) writes aggregated metrics to e.g. [`results/bert_ner_config_0.csv`](results/bert_ner_config_0.csv); [`train_modernbert_ner.py`](scripts/train_modernbert_ner.py) writes one `results/modernbert_ner_config_<name>.csv` per sweep entry (e.g. [`results/modernbert_ner_config_G.csv`](results/modernbert_ner_config_G.csv)).
-
-[`train_runner.py`](scripts/train_runner.py) runs them in subprocess order:
+From the project root (after `uv sync`), run a trainer with:
 
 ```bash
-uv run python scripts/train_runner.py bert
-uv run python scripts/train_runner.py modernbert
-uv run python scripts/train_runner.py all
+uv run python scripts/<training_file>.py
 ```
 
-The full list of ModernBERT configurations is commented out in `train_modernbert_ner.py`; to review or run specific configs, refer directly to that script. By default, running `modernbert` will execute all configs defined there, so a complete sweep is much heavier than a single BERT baseline run.
+Each script writes metrics under [`results/`](results/) as paired `ner_*.csv` and `ner_*.json` (see the `OUTPUT_STEM` / manifest logic at the bottom of each file). Hyperparameters are defined in that script (e.g. `HP_CONFIGS`); edit before long sweeps. Extra artifacts from older runs may live under [`results/old/`](results/old/).
 
-Verification helpers (toy checks / data sanity): `uv run python scripts/conll2003_dataset_verification.py`, `conll2003_concat_verification.py`, `conll2003_tokenization_compare.py`, and `conll2003_crf_verification.py` (pytorch-crf padding mask + BIO illegal transitions).
+| Script                                                                       | Trains                                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`train_bert_ner.py`](scripts/train_bert_ner.py)                             | BERT, sentence → `ner_bert_ref.*`                                                     |
+| [`train_bert_doc_ner.py`](scripts/train_bert_doc_ner.py)                     | BERT, document windows → `ner_bert_doc_ref.*`                                         |
+| [`train_modernbert_ner.py`](scripts/train_modernbert_ner.py)                 | ModernBERT, sentence; one row per `HP_CONFIGS` entry → `ner_mbert_sent_best_<name>.*` |
+| [`train_modernbert_doc_ner.py`](scripts/train_modernbert_doc_ner.py)         | ModernBERT, document → `ner_mbert_doc_best.*`                                         |
+| [`train_modernbert_crf_ner.py`](scripts/train_modernbert_crf_ner.py)         | ModernBERT + CRF, sentence → `ner_mbert_sent_crf_best.*`                              |
+| [`train_modernbert_doc_crf_ner.py`](scripts/train_modernbert_doc_crf_ner.py) | ModernBERT + CRF, document → `ner_mbert_doc_crf_tuned.*`                              |
+
+### Data
+
+Use the same `data/conll2003/` tree as in [Dataset download](#dataset-download). Training scripts resolve `data_dir` relative to the repo (see each file).
+
+### Sanity checks (optional)
+
+| Script                                                                           | What it checks                     |
+| -------------------------------------------------------------------------------- | ---------------------------------- |
+| [`conll2003_dataset_verification.py`](scripts/conll2003_dataset_verification.py) | Dataset layout / expectations      |
+| [`conll2003_concat_verification.py`](scripts/conll2003_concat_verification.py)   | Sentence concatenation             |
+| [`conll2003_tokenization_compare.py`](scripts/conll2003_tokenization_compare.py) | Tokenization alignment             |
+| [`conll2003_crf_verification.py`](scripts/conll2003_crf_verification.py)         | CRF mask + illegal BIO transitions |
+
+Run any of them from the project root, for example:
+
+```bash
+uv run python scripts/conll2003_dataset_verification.py
+```
