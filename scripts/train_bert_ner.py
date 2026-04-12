@@ -29,38 +29,19 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
-from conll2003_expectations import assert_conll2003_dataset
+from conll2003_expectations import (
+    assert_conll2003_dataset,
+    assert_parsed_sentence_counts_match_expected,
+)
+from conll2003_parse import parse_conll
 
-OUTPUT_STEM = "ner_bert_ref"
+OUTPUT_STEM = "ner_bert_ref_v2"
 
 RUN_DESCRIPTION = (
     "Sentence-level bert-base-cased on CoNLL-2003; softmax head; -DOCSTART- "
-    "ignored so no cross-sentence context. NER-style finetune HPs (see JSON). "
-    "Writes ner_bert_ref.{csv,json}."
+    "ignored so no cross-sentence context. Config aligned_v2: wd 0.01, 8 epochs + "
+    "early stopping (patience 3). Writes ner_bert_ref_v2.{csv,json}."
 )
-
-
-def parse_conll(filepath):
-    """00bert_baseline. Sentence-level, skips -DOCSTART-."""
-    sentences = []
-    current = []
-    with open(filepath) as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                word = parts[0]
-                ner = parts[-1]
-                current.append((word, ner))
-        if current:
-            sentences.append(current)
-    return sentences
 
 
 label_list = [
@@ -324,6 +305,9 @@ if __name__ == "__main__":
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
+    assert_parsed_sentence_counts_match_expected(
+        len(train_sentences), len(dev_sentences), len(test_sentences)
+    )
     print(f"Train: {len(train_sentences)} sentences")
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
@@ -332,11 +316,12 @@ if __name__ == "__main__":
 
     HP_CONFIGS = [
         {
-            "name": "aligned",
+            "name": "aligned_v2",
             "lr": 5e-5,
-            "epochs": 5,
+            "epochs": 8,
+            "early_stopping_patience": 3,
             "warmup_ratio": 0.10,
-            "weight_decay": 1e-5,
+            "weight_decay": 0.01,
             "batch_size": 32,
             "max_seq_length": 128,
         },
@@ -354,6 +339,7 @@ if __name__ == "__main__":
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
         max_seq_length = cfg["max_seq_length"]
+        early_stopping_patience = cfg.get("early_stopping_patience")
 
         if max_seq_length != prev_max_seq:
             train_dataset = ConllDataset(
@@ -370,8 +356,13 @@ if __name__ == "__main__":
         manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
 
         print(f"\n{'#' * 60}")
+        es_note = (
+            f", early_stopping_patience={early_stopping_patience}"
+            if early_stopping_patience is not None
+            else ""
+        )
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
+            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}{es_note}, "
             f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
             f"max_seq_length={max_seq_length}, clip={CLIP}"
         )
@@ -437,6 +428,7 @@ if __name__ == "__main__":
             best_val_f1 = 0.0
             best_epoch = -1
             best_state_dict = None
+            epochs_no_improve = 0
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -450,6 +442,18 @@ if __name__ == "__main__":
                     best_val_f1 = val_f1
                     best_epoch = epoch + 1
                     best_state_dict = copy.deepcopy(model.state_dict())
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+                    if (
+                        early_stopping_patience is not None
+                        and epochs_no_improve >= early_stopping_patience
+                    ):
+                        print(
+                            f"Early stopping: no dev F1 improvement for "
+                            f"{early_stopping_patience} epoch(s)."
+                        )
+                        break
 
             best_val_f1s.append(best_val_f1)
             best_epochs.append(best_epoch)
