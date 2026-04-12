@@ -1,9 +1,16 @@
-"""Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py."""
+"""Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py.
+
+Run identity: sentence-level (`parse_conll` skips `-DOCSTART-`); softmax head; seqeval.
+Sentence side of the factorial vs doc-context + CRF runs. `HP_CONFIGS` lists
+optimized sentence-level runs (LR / discriminative head / batch size + early stopping).
+Outputs per config: `ner_mbert_sent_best_<name>.{csv,json}`."""
 
 import copy
+import json
 import random
+import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -18,28 +25,18 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from conll2003_expectations import (
+    assert_conll2003_dataset,
+    assert_parsed_sentence_counts_match_expected,
+)
+from conll2003_parse import parse_conll
 
-def parse_conll(filepath):
-    """00bert_baseline. Sentence-level, skips -DOCSTART-."""
-    sentences = []
-    current = []
-    with open(filepath) as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                word = parts[0]
-                ner = parts[-1]
-                current.append((word, ner))
-        if current:
-            sentences.append(current)
-    return sentences
+OUTPUT_STEM = "ner_mbert_sent_best"
+
+RUN_DESCRIPTION = (
+    "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. "
+    "Writes ner_mbert_sent_best_<config_name>.{csv,json} per HP_CONFIGS entry."
+)
 
 
 label_list = [
@@ -236,28 +233,104 @@ def aggregate_reports(reports):
     return pd.DataFrame(rows)
 
 
-def build_optimizer(model, lr, weight_decay=0.01):
-    """AdamW with weight decay fix: exclude bias and norm params from decay."""
+def build_optimizer(
+    model,
+    lr: float,
+    weight_decay: float = 0.01,
+    head_lr: float | None = None,
+) -> optim.AdamW:
+    """AdamW with weight decay fix: exclude bias and norm params from decay.
+
+    If ``head_lr`` is set, parameters whose name contains ``classifier`` use
+    ``head_lr``; the rest use ``lr`` (encoder / backbone).
+    """
     no_decay = ["bias", "norm.weight"]
-    grouped_params = [
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": weight_decay,
-        },
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
-    ]
-    return optim.AdamW(grouped_params, lr=lr)
+
+    def is_head(n: str) -> bool:
+        return "classifier" in n
+
+    def use_weight_decay(n: str) -> bool:
+        return not any(nd in n for nd in no_decay)
+
+    if head_lr is None:
+        grouped_params = [
+            {
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if use_weight_decay(n)
+                ],
+                "weight_decay": weight_decay,
+                "lr": lr,
+            },
+            {
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if not use_weight_decay(n)
+                ],
+                "weight_decay": 0.0,
+                "lr": lr,
+            },
+        ]
+        return optim.AdamW(grouped_params)
+
+    groups: list[dict[str, Any]] = []
+    for head in (False, True):
+        plr = head_lr if head else lr
+        decay_p = [
+            p
+            for n, p in model.named_parameters()
+            if is_head(n) == head and use_weight_decay(n)
+        ]
+        nodecay_p = [
+            p
+            for n, p in model.named_parameters()
+            if is_head(n) == head and not use_weight_decay(n)
+        ]
+        if decay_p:
+            groups.append(
+                {"params": decay_p, "weight_decay": weight_decay, "lr": plr}
+            )
+        if nodecay_p:
+            groups.append({"params": nodecay_p, "weight_decay": 0.0, "lr": plr})
+    return optim.AdamW(groups)
+
+
+def save_run_manifest(
+    path: Path,
+    cfg_name: str,
+    cfg: dict[str, Any],
+    seeds: list[int],
+    *,
+    model_id: str,
+    max_seq_length: int,
+    script_name: str,
+    run_description: str,
+) -> None:
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path.parent.parent,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        git_hash = "unknown"
+    import importlib.metadata as im
+
+    payload = {
+        "config_name": cfg_name,
+        "seeds": seeds,
+        "git_commit": git_hash,
+        "hyperparameters": cfg,
+        "torch_version": torch.__version__,
+        "transformers_version": im.version("transformers"),
+        "model_id": model_id,
+        "max_seq_length": max_seq_length,
+        "script": script_name,
+        "run_description": run_description,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
@@ -268,10 +341,16 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
+    results_dir.mkdir(exist_ok=True)
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
+    assert_parsed_sentence_counts_match_expected(
+        len(train_sentences), len(dev_sentences), len(test_sentences)
+    )
     print(f"Train: {len(train_sentences)} sentences")
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
@@ -288,35 +367,45 @@ if __name__ == "__main__":
     #     for i, (tok, wid) in enumerate(zip(tokens, word_ids)):
     #         print(f"{i}: {tok!r} -> word_id={wid}")
 
-    train_dataset = ConllDataset(train_sentences, tokenizer, label2id)
-    dev_dataset = ConllDataset(dev_sentences, tokenizer, label2id)
-    test_dataset = ConllDataset(test_sentences, tokenizer, label2id)
-
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    # 0 = controlled baseline: match BERT fine-tuning (lr, epochs, batch) so tokenizer /
-    # architecture is the only deliberate difference. G = best sentence-level HP from our sweep.
     HP_CONFIGS = [
         {
-            "name": "0",
-            "lr": 2e-5,
-            "epochs": 5,
+            "name": "B_lr3e5_es12",
+            "lr": 3e-5,
+            "epochs": 12,
+            "early_stopping_patience": 3,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 16,
+            "max_seq_length": 512,
         },
         {
-            "name": "G",
-            "lr": 6e-5,
-            "epochs": 10,
+            "name": "B_disc4e5_es12",
+            "lr": 4e-5,
+            "head_lr": 1e-4,
+            "epochs": 12,
+            "early_stopping_patience": 3,
+            "warmup_ratio": 0.10,
+            "weight_decay": 0.01,
+            "batch_size": 16,
+            "max_seq_length": 512,
+        },
+        {
+            "name": "B_bs32_lr4e5_es12",
+            "lr": 4e-5,
+            "epochs": 12,
+            "early_stopping_patience": 3,
             "warmup_ratio": 0.10,
             "weight_decay": 0.01,
             "batch_size": 32,
+            "max_seq_length": 512,
         },
     ]
 
     summary_rows = []
     prev_batch_size = None
+    prev_max_seq: int | None = None
 
     for cfg in HP_CONFIGS:
         cfg_name = cfg["name"]
@@ -325,6 +414,21 @@ if __name__ == "__main__":
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        max_seq_length = cfg["max_seq_length"]
+        head_lr = cfg.get("head_lr")
+        early_stopping_patience = cfg.get("early_stopping_patience")
+
+        if max_seq_length != prev_max_seq:
+            train_dataset = ConllDataset(
+                train_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            dev_dataset = ConllDataset(
+                dev_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            test_dataset = ConllDataset(
+                test_sentences, tokenizer, label2id, max_length=max_seq_length
+            )
+            prev_max_seq = max_seq_length
 
         if batch_size != prev_batch_size:
             train_loader = DataLoader(
@@ -344,12 +448,33 @@ if __name__ == "__main__":
             )
             prev_batch_size = batch_size
 
+        manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
+        artifact_stem = f"{OUTPUT_STEM}_{cfg_name}"
+
         print(f"\n{'#' * 60}")
+        es_note = (
+            f", early_stopping_patience={early_stopping_patience}"
+            if early_stopping_patience is not None
+            else ""
+        )
+        hl_note = f", head_lr={head_lr}" if head_lr is not None else ""
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+            f"CONFIG {cfg_name}: lr={lr}{hl_note}, max_epochs={n_epochs}{es_note}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
+            f"max_seq_length={max_seq_length}, clip={CLIP}"
         )
         print(f"{'#' * 60}")
+
+        save_run_manifest(
+            results_dir / f"{artifact_stem}.json",
+            cfg_name,
+            manifest_hp,
+            SEEDS,
+            model_id="answerdotai/ModernBERT-base",
+            max_seq_length=max_seq_length,
+            script_name="train_modernbert_ner.py",
+            run_description=RUN_DESCRIPTION,
+        )
 
         reports = []
         best_val_f1s = []
@@ -370,7 +495,9 @@ if __name__ == "__main__":
 
             total_steps = len(train_loader) * n_epochs
             warmup_steps = int(warmup_ratio * total_steps)
-            optimizer = build_optimizer(model, lr=lr, weight_decay=weight_decay)
+            optimizer = build_optimizer(
+                model, lr=lr, weight_decay=weight_decay, head_lr=head_lr
+            )
             scheduler = get_linear_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=warmup_steps,
@@ -380,6 +507,7 @@ if __name__ == "__main__":
             best_val_f1 = 0.0
             best_epoch = -1
             best_state_dict = None
+            epochs_no_improve = 0
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -393,6 +521,18 @@ if __name__ == "__main__":
                     best_val_f1 = val_f1
                     best_epoch = epoch + 1
                     best_state_dict = copy.deepcopy(model.state_dict())
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+                    if (
+                        early_stopping_patience is not None
+                        and epochs_no_improve >= early_stopping_patience
+                    ):
+                        print(
+                            f"Early stopping: no dev F1 improvement for "
+                            f"{early_stopping_patience} epoch(s)."
+                        )
+                        break
 
             best_val_f1s.append(best_val_f1)
             best_epochs.append(best_epoch)
@@ -413,9 +553,9 @@ if __name__ == "__main__":
         print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
         print(df.to_string())
 
-        csv_name = f"modernbert_ner_config_{cfg_name}.csv"
-        df.to_csv(results_dir / csv_name)
-        print(f"Saved to {csv_name}")
+        csv_path = results_dir / f"{artifact_stem}.csv"
+        df.to_csv(csv_path)
+        print(f"Saved to {csv_path.name}")
 
         test_micro_f1 = df.loc["micro avg", "f1-score"]
         dev_f1_mean = float(np.mean(best_val_f1s))
@@ -424,10 +564,19 @@ if __name__ == "__main__":
             {
                 "config": cfg_name,
                 "lr": lr,
+                "head_lr": head_lr if head_lr is not None else "",
                 "epochs": n_epochs,
+                "early_stopping_patience": (
+                    early_stopping_patience
+                    if early_stopping_patience is not None
+                    else ""
+                ),
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
+                "max_seq_length": max_seq_length,
+                "gradient_clip": CLIP,
+                "artifacts": f"{artifact_stem}.{{csv,json}}",
                 "test_micro_f1": test_micro_f1,
                 "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
@@ -435,7 +584,7 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 70)
-    print("HYPERPARAMETER SWEEP SUMMARY")
+    print("RUN SUMMARY")
     print("=" * 70)
     summary_df = pd.DataFrame(summary_rows)
     print(summary_df.to_string(index=False))

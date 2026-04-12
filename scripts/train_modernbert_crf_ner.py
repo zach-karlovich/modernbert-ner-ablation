@@ -1,13 +1,7 @@
-"""Fine-tune bert-base-cased on CoNLL-2003 NER.
+"""Fine-tune ModernBERT-base + linear-chain CRF on CoNLL-2003 NER (sentence-level).
 
-Patterns from deep learning coursework assignment 2 and 3; classification report
-logic from notebooks/00bert_baseline.ipynb.
-
-Run identity: sentence-level examples only (`parse_conll` skips `-DOCSTART-`);
-softmax token head; seqeval F1. Reference encoder for the ModernBERT ablation.
-Outputs `ner_bert_ref.{csv,json}`. HPs live in `HP_CONFIGS` below (default
-`max_seq_length` 128 is standard for CoNLL sentence NER; use 512 there if you
-want zero truncation margin)."""
+Run identity: sentence-level; CRF decoder; dense BIO labels; seqeval. Sent.+CRF cell of
+the factorial. Output stem `ner_mbert_sent_crf_best.{csv,json}`; HPs in `HP_CONFIGS`."""
 
 import copy
 import json
@@ -19,29 +13,31 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import torch
-import torch.optim as optim
+import torch.nn.functional as F
 from seqeval.metrics import classification_report, f1_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import (
-    AutoModelForTokenClassification,
-    AutoTokenizer,
-    get_linear_schedule_with_warmup,
+from transformers import AutoTokenizer, get_linear_schedule_with_warmup
+
+from conll2003_labels import id2label, label2id
+from dense_bio_labels import (
+    assign_dense_bio_labels,
+    collapse_to_word_labels,
+    word_ids_list_to_tensor_ids,
 )
+from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 
-from conll2003_expectations import assert_conll2003_dataset
-
-OUTPUT_STEM = "ner_bert_ref"
+MODEL_ID = "answerdotai/ModernBERT-base"
+WORD_PAD_ID = -99
+OUTPUT_STEM = "ner_mbert_sent_crf_best"
 
 RUN_DESCRIPTION = (
-    "Sentence-level bert-base-cased on CoNLL-2003; softmax head; -DOCSTART- "
-    "ignored so no cross-sentence context. NER-style finetune HPs (see JSON). "
-    "Writes ner_bert_ref.{csv,json}."
+    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G in HP_CONFIGS. "
+    "Writes ner_mbert_sent_crf_best.{csv,json}."
 )
 
 
 def parse_conll(filepath):
-    """00bert_baseline. Sentence-level, skips -DOCSTART-."""
     sentences = []
     current = []
     with open(filepath) as f:
@@ -63,37 +59,18 @@ def parse_conll(filepath):
     return sentences
 
 
-label_list = [
-    "O",
-    "B-PER",
-    "I-PER",
-    "B-ORG",
-    "I-ORG",
-    "B-LOC",
-    "I-LOC",
-    "B-MISC",
-    "I-MISC",
-]
-label2id = {label: i for i, label in enumerate(label_list)}
-id2label = {i: label for i, label in enumerate(label_list)}
-
-
 def set_seeds_to(seed: int) -> None:
-    """assignment 2 runner."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
 
-class ConllDataset(Dataset):
-    """Tokenize sentences, align labels to subwords. First subword = label, rest = -100 (ignored)."""
-
-    def __init__(self, sentences, tokenizer, label2id, max_length=512):
+class ConllDatasetCRF(Dataset):
+    def __init__(self, sentences, tokenizer, max_length=512):
         self.sentences = sentences
         self.tokenizer = tokenizer
-        self.label2id = label2id
         self.max_length = max_length
 
     def __len__(self):
@@ -112,60 +89,65 @@ class ConllDataset(Dataset):
             max_length=self.max_length,
         )
         word_ids = encoding.word_ids()
-        labels = []
-        for i in range(len(word_ids)):
-            if word_ids[i] is None:
-                labels.append(-100)
-            elif i == 0 or word_ids[i] != word_ids[i - 1]:
-                labels.append(self.label2id[tags[word_ids[i]]])
-            else:
-                labels.append(-100)
+        label_ids = assign_dense_bio_labels(word_ids, tags)
+        w_tensor = torch.tensor(
+            word_ids_list_to_tensor_ids(word_ids), dtype=torch.long
+        )
+        n_words = len(words)
         return {
             "input_ids": encoding["input_ids"].squeeze(0),
             "attention_mask": encoding["attention_mask"].squeeze(0),
-            "labels": torch.tensor(labels, dtype=torch.long),
+            "labels": torch.tensor(label_ids, dtype=torch.long),
+            "word_ids": w_tensor,
+            "word_include_mask": [True] * n_words,
         }
 
 
-def collate_fn(batch):
-    """Pad to max len in batch. assignment 3 style."""
-    max_len = max(item["input_ids"].size(0) for item in batch)
-    pad_id = 0
-    input_ids_list = []
-    attention_mask_list = []
-    labels_list = []
-    for item in batch:
-        pad_len = max_len - item["input_ids"].size(0)
-        input_ids_list.append(
-            torch.nn.functional.pad(item["input_ids"], (0, pad_len), value=pad_id)
+def make_collate_fn_crf(pad_token_id: int, label_pad_id: int):
+    def collate_fn(batch):
+        max_len = max(item["input_ids"].size(0) for item in batch)
+        pad_id = pad_token_id
+        input_ids_list = []
+        attention_mask_list = []
+        labels_list = []
+        word_ids_list = []
+        includes = []
+        for item in batch:
+            pad_len = max_len - item["input_ids"].size(0)
+            input_ids_list.append(
+                F.pad(item["input_ids"], (0, pad_len), value=pad_id)
+            )
+            attention_mask_list.append(
+                F.pad(item["attention_mask"], (0, pad_len), value=0)
+            )
+            labels_list.append(
+                F.pad(item["labels"], (0, pad_len), value=label_pad_id)
+            )
+            word_ids_list.append(
+                F.pad(item["word_ids"], (0, pad_len), value=WORD_PAD_ID)
+            )
+            includes.append(item["word_include_mask"])
+        return (
+            torch.stack(input_ids_list),
+            torch.stack(attention_mask_list),
+            torch.stack(labels_list),
+            torch.stack(word_ids_list),
+            includes,
         )
-        attention_mask_list.append(
-            torch.nn.functional.pad(item["attention_mask"], (0, pad_len), value=0)
-        )
-        labels_list.append(
-            torch.nn.functional.pad(item["labels"], (0, pad_len), value=-100)
-        )
-    return (
-        torch.stack(input_ids_list),
-        torch.stack(attention_mask_list),
-        torch.stack(labels_list),
-    )
+
+    return collate_fn
 
 
 def train_epoch(model, dataloader, optimizer, scheduler, device, clip):
-    """Modeled after assignment 2 runner.train_epoch. BERT returns loss directly."""
     model.train()
     running_loss = 0.0
     for batch in tqdm(dataloader, desc="Training"):
-        input_ids, attention_mask, labels = batch
+        input_ids, attention_mask, labels, _, _ = batch
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         labels = labels.to(device)
         optimizer.zero_grad()
-        outputs = model(
-            input_ids=input_ids, attention_mask=attention_mask, labels=labels
-        )
-        loss = outputs.loss
+        loss, _ = model(input_ids, attention_mask, labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
@@ -174,30 +156,33 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, clip):
     return running_loss / len(dataloader)
 
 
-def evaluate(model, dataloader, device, id2label):
-    """assignment 2 runner.evaluate. Uses seqeval for entity-level F1."""
+def evaluate(model, dataloader, device, id2label_map):
     model.eval()
     running_loss = 0.0
     all_predictions = []
     all_labels = []
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating"):
-            input_ids, attention_mask, labels = batch
+            input_ids, attention_mask, labels, word_ids, includes = batch
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            outputs = model(
-                input_ids=input_ids, attention_mask=attention_mask, labels=labels
-            )
-            running_loss += outputs.loss.item()
-            preds = outputs.logits.argmax(-1)
-            for i in range(labels.size(0)):
-                pred_seq = []
-                label_seq = []
-                for j in range(labels.size(1)):
-                    if labels[i, j].item() != -100:
-                        pred_seq.append(id2label[preds[i, j].item()])
-                        label_seq.append(id2label[labels[i, j].item()])
+            loss, _ = model(input_ids, attention_mask, labels)
+            running_loss += loss.item()
+            paths = model.decode(input_ids, attention_mask)
+            bsz = input_ids.size(0)
+            for i in range(bsz):
+                L = int(attention_mask[i].sum().item())
+                row_w = word_ids[i, :L].tolist()
+                row_m = attention_mask[i, :L].tolist()
+                pred_ids = paths[i][:L]
+                gold_ids = labels[i, :L].tolist()
+                pred_seq = collapse_to_word_labels(
+                    row_w, pred_ids, row_m, id2label_map, includes[i]
+                )
+                label_seq = collapse_to_word_labels(
+                    row_w, gold_ids, row_m, id2label_map, includes[i]
+                )
                 all_predictions.append(pred_seq)
                 all_labels.append(label_seq)
     epoch_loss = running_loss / len(dataloader)
@@ -205,25 +190,30 @@ def evaluate(model, dataloader, device, id2label):
     return epoch_loss, f1
 
 
-def get_predictions(model, dataloader, device, id2label):
+def get_predictions(model, dataloader, device, id2label_map):
     model.eval()
     all_preds = []
     all_true = []
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating"):
-            input_ids, attention_mask, labels = batch
+            input_ids, attention_mask, labels, word_ids, includes = batch
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            preds = outputs.logits.argmax(-1)
-            for i in range(labels.size(0)):
-                pred_seq = []
-                label_seq = []
-                for j in range(labels.size(1)):
-                    if labels[i, j].item() != -100:
-                        pred_seq.append(id2label[preds[i, j].item()])
-                        label_seq.append(id2label[labels[i, j].item()])
+            paths = model.decode(input_ids, attention_mask)
+            bsz = input_ids.size(0)
+            for i in range(bsz):
+                L = int(attention_mask[i].sum().item())
+                row_w = word_ids[i, :L].tolist()
+                row_m = attention_mask[i, :L].tolist()
+                pred_ids = paths[i][:L]
+                gold_ids = labels[i, :L].tolist()
+                pred_seq = collapse_to_word_labels(
+                    row_w, pred_ids, row_m, id2label_map, includes[i]
+                )
+                label_seq = collapse_to_word_labels(
+                    row_w, gold_ids, row_m, id2label_map, includes[i]
+                )
                 all_preds.append(pred_seq)
                 all_true.append(label_seq)
     return all_preds, all_true
@@ -249,39 +239,12 @@ def aggregate_reports(reports):
     return pd.DataFrame(rows)
 
 
-def build_optimizer(model, lr, weight_decay=0.01):
-    no_decay = ["bias", "LayerNorm.weight"]
-    grouped_params = [
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": weight_decay,
-        },
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
-    ]
-    return optim.AdamW(grouped_params, lr=lr)
-
-
-def save_run_manifest(
+def save_run_config(
     path: Path,
     cfg_name: str,
     cfg: dict[str, Any],
     seeds: list[int],
-    *,
-    model_id: str,
-    max_seq_length: int,
-    script_name: str,
-    run_description: str,
+    extra: dict[str, Any],
 ) -> None:
     try:
         git_hash = subprocess.check_output(
@@ -300,10 +263,8 @@ def save_run_manifest(
         "hyperparameters": cfg,
         "torch_version": torch.__version__,
         "transformers_version": im.version("transformers"),
-        "model_id": model_id,
-        "max_seq_length": max_seq_length,
-        "script": script_name,
-        "run_description": run_description,
+        "pytorch_crf_version": im.version("pytorch-crf"),
+        **extra,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -317,10 +278,9 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
-    assert_conll2003_dataset(data_dir)
-    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
+
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
@@ -328,65 +288,75 @@ if __name__ == "__main__":
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
 
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+
+    train_dataset = ConllDatasetCRF(train_sentences, tokenizer)
+    dev_dataset = ConllDatasetCRF(dev_sentences, tokenizer)
+    test_dataset = ConllDatasetCRF(test_sentences, tokenizer)
+
+    collate_fn = make_collate_fn_crf(tokenizer.pad_token_id, label_pad_id=label2id["O"])
 
     HP_CONFIGS = [
         {
-            "name": "aligned",
-            "lr": 5e-5,
-            "epochs": 5,
+            "name": "G",
+            "lr": 6e-5,
+            "crf_lr": 3e-4,
+            "epochs": 10,
             "warmup_ratio": 0.10,
-            "weight_decay": 1e-5,
+            "weight_decay": 0.01,
             "batch_size": 32,
-            "max_seq_length": 128,
         },
     ]
 
     summary_rows = []
-    prev_max_seq: int | None = None
-    loader_generator = torch.Generator()
+    prev_batch_size = None
 
     for cfg in HP_CONFIGS:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
+        crf_lr = cfg["crf_lr"]
         n_epochs = cfg["epochs"]
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
-        max_seq_length = cfg["max_seq_length"]
 
-        if max_seq_length != prev_max_seq:
-            train_dataset = ConllDataset(
-                train_sentences, tokenizer, label2id, max_length=max_seq_length
-            )
-            dev_dataset = ConllDataset(
-                dev_sentences, tokenizer, label2id, max_length=max_seq_length
-            )
-            test_dataset = ConllDataset(
-                test_sentences, tokenizer, label2id, max_length=max_seq_length
-            )
-            prev_max_seq = max_seq_length
+        save_run_config(
+            results_dir / f"{OUTPUT_STEM}.json",
+            cfg_name,
+            cfg,
+            SEEDS,
+            {
+                "model_id": MODEL_ID,
+                "max_seq_length": 512,
+                "script": "train_modernbert_crf_ner.py",
+                "run_description": RUN_DESCRIPTION,
+            },
+        )
 
-        manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
+        if batch_size != prev_batch_size:
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                collate_fn=collate_fn,
+            )
+            dev_loader = DataLoader(
+                dev_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn
+            )
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=collate_fn,
+            )
+            prev_batch_size = batch_size
 
         print(f"\n{'#' * 60}")
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
-            f"max_seq_length={max_seq_length}, clip={CLIP}"
+            f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
         )
         print(f"{'#' * 60}")
-
-        save_run_manifest(
-            results_dir / f"{OUTPUT_STEM}.json",
-            cfg_name,
-            manifest_hp,
-            SEEDS,
-            model_id="bert-base-cased",
-            max_seq_length=max_seq_length,
-            script_name="train_bert_ner.py",
-            run_description=RUN_DESCRIPTION,
-        )
 
         reports = []
         best_val_f1s = []
@@ -397,37 +367,14 @@ if __name__ == "__main__":
             print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
             print("=" * 50)
             set_seeds_to(seed)
-            loader_generator.manual_seed(seed)
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                collate_fn=collate_fn,
-                generator=loader_generator,
-            )
-            dev_loader = DataLoader(
-                dev_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-            )
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-            )
 
-            model = AutoModelForTokenClassification.from_pretrained(
-                "bert-base-cased",
-                num_labels=len(label_list),
-                id2label=id2label,
-                label2id=label2id,
-            ).to(device)
+            model = ModernBertTokenCRF(MODEL_ID, trust_remote_code=True).to(device)
 
             total_steps = len(train_loader) * n_epochs
             warmup_steps = int(warmup_ratio * total_steps)
-            optimizer = build_optimizer(model, lr=lr, weight_decay=weight_decay)
+            optimizer = build_crf_optimizer(
+                model, lr=lr, crf_lr=crf_lr, weight_decay=weight_decay
+            )
             scheduler = get_linear_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=warmup_steps,
@@ -481,12 +428,11 @@ if __name__ == "__main__":
             {
                 "config": cfg_name,
                 "lr": lr,
+                "crf_lr": crf_lr,
                 "epochs": n_epochs,
                 "warmup_ratio": warmup_ratio,
                 "weight_decay": weight_decay,
                 "batch_size": batch_size,
-                "max_seq_length": max_seq_length,
-                "gradient_clip": CLIP,
                 "test_micro_f1": test_micro_f1,
                 "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
                 "best_epoch_mean": f"{np.mean(best_epochs):.2f}",

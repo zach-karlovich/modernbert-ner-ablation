@@ -1,9 +1,8 @@
-"""Fine-tune ModernBERT-base on CoNLL-2003 NER with in-document context (8192 tokens).
+"""Fine-tune ModernBERT-base + CRF on CoNLL-2003 NER with document context (8192).
 
-Run identity: `-DOCSTART-` respected; sliding windows; softmax head; seqeval. Doc side of
-the 2×2 ablation vs sentence-level + CRF variants. Single HP config **doc_4e5_bs2**
-(lr 4e-5) — best test micro F1 in the doc-context linear sweep. Outputs
-`ner_mbert_doc_best.{csv,json}`. For lr 5e-5 use a one-off rename or restore sweep list."""
+Run identity: `-DOCSTART-` sliding windows; CRF head; Doc.+CRF factorial cell. Rivanna-oriented
+opts: bf16 autocast, gradient checkpointing, batch 4 × grad_accum 4 (effective 16), pin_memory.
+Output `ner_mbert_doc_crf_tuned.{csv,json}`; HP in `HP_CONFIG`."""
 
 import copy
 import json
@@ -15,16 +14,19 @@ from typing import Any, Literal, cast
 import numpy as np
 import pandas as pd
 import torch
-import torch.optim as optim
+import torch.nn.functional as F
 from seqeval.metrics import classification_report, f1_score
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import (
-    AutoModelForTokenClassification,
-    AutoTokenizer,
-    get_linear_schedule_with_warmup,
-)
+from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
+from conll2003_labels import id2label, label2id
+from dense_bio_labels import (
+    assign_dense_bio_labels,
+    collapse_to_word_labels,
+    word_ids_list_to_tensor_ids,
+)
+from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 from sliding_window_conll import (
     DEFAULT_TOKEN_OVERLAP,
     build_windows_word_ranges,
@@ -36,18 +38,17 @@ from sliding_window_conll import (
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
-GRAD_ACCUM_STEPS = 8
-OUTPUT_STEM = "ner_mbert_doc_best"
+GRAD_ACCUM_STEPS = 4
+WORD_PAD_ID = -99
+OUTPUT_STEM = "ner_mbert_doc_crf_tuned"
 
 RUN_DESCRIPTION = (
-    "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window "
-    "packing like BERT doc script but full long context. Config doc_4e5_bs2 in "
-    "HP_CONFIGS. Writes ner_mbert_doc_best.{csv,json}."
+    "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config "
+    "doc_5e5_bs4 in HP_CONFIG. Writes ner_mbert_doc_crf_tuned.{csv,json}."
 )
 
 
 def parse_conll_documents(filepath):
-    """Parse CoNLL-2003 into documents -> sentences -> (word, tag)."""
     documents = []
     current_doc = []
     current_sent = []
@@ -86,21 +87,6 @@ def parse_conll_documents(filepath):
     return documents
 
 
-label_list = [
-    "O",
-    "B-PER",
-    "I-PER",
-    "B-ORG",
-    "I-ORG",
-    "B-LOC",
-    "I-LOC",
-    "B-MISC",
-    "I-MISC",
-]
-label2id = {label: i for i, label in enumerate(label_list)}
-id2label = {i: label for i, label in enumerate(label_list)}
-
-
 def set_seeds_to(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -110,27 +96,22 @@ def set_seeds_to(seed: int) -> None:
 
 
 def seed_worker(worker_info):
-    """Ensure each DataLoader worker has a unique but reproducible seed."""
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
 
-class ConllDocContextDataset(Dataset):
-    """Per-sentence supervision with same-document neighbor context (ModernBERT length)."""
-
+class ConllDocContextDatasetCRF(Dataset):
     def __init__(
         self,
         documents,
         tokenizer,
-        label2id,
         max_length=MAX_SEQ_LENGTH,
         window_mode: Literal["train", "eval"] = "train",
         token_overlap: int = DEFAULT_TOKEN_OVERLAP,
     ):
         self.documents = documents
         self.tokenizer = tokenizer
-        self.label2id = label2id
         self.max_length = max_length
         self.special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
         self.window_mode = window_mode
@@ -291,51 +272,55 @@ class ConllDocContextDataset(Dataset):
         )
 
         word_ids = encoding.word_ids()
-        labels = []
-        for i in range(len(word_ids)):
-            if word_ids[i] is None:
-                labels.append(-100)
-            elif i > 0 and word_ids[i] == word_ids[i - 1]:
-                labels.append(-100)
-            elif is_target_word[word_ids[i]]:
-                labels.append(self.label2id[tags[word_ids[i]]])
-            else:
-                labels.append(-100)
+        label_ids = assign_dense_bio_labels(word_ids, tags)
+        w_tensor = torch.tensor(
+            word_ids_list_to_tensor_ids(word_ids), dtype=torch.long
+        )
 
         return {
             "input_ids": encoding["input_ids"].squeeze(0),
             "attention_mask": encoding["attention_mask"].squeeze(0),
-            "labels": torch.tensor(labels, dtype=torch.long),
+            "labels": torch.tensor(label_ids, dtype=torch.long),
+            "word_ids": w_tensor,
+            "word_include_mask": is_target_word,
         }
 
 
-class ConllDocCollator:
-    """Top-level collator so DataLoader workers can pickle it (Python 3.14+ forkserver)."""
-
-    def __init__(self, pad_token_id: int):
+class ConllDocCollatorCRF:
+    def __init__(self, pad_token_id: int, label_pad_id: int):
         self.pad_token_id = pad_token_id
+        self.label_pad_id = label_pad_id
 
     def __call__(self, batch):
         max_len = max(item["input_ids"].size(0) for item in batch)
         pad_id = self.pad_token_id
+        lp = self.label_pad_id
         input_ids_list = []
         attention_mask_list = []
         labels_list = []
+        word_ids_list = []
+        includes = []
         for item in batch:
             pad_len = max_len - item["input_ids"].size(0)
             input_ids_list.append(
-                torch.nn.functional.pad(item["input_ids"], (0, pad_len), value=pad_id)
+                F.pad(item["input_ids"], (0, pad_len), value=pad_id)
             )
             attention_mask_list.append(
-                torch.nn.functional.pad(item["attention_mask"], (0, pad_len), value=0)
+                F.pad(item["attention_mask"], (0, pad_len), value=0)
             )
             labels_list.append(
-                torch.nn.functional.pad(item["labels"], (0, pad_len), value=-100)
+                F.pad(item["labels"], (0, pad_len), value=lp)
             )
+            word_ids_list.append(
+                F.pad(item["word_ids"], (0, pad_len), value=WORD_PAD_ID)
+            )
+            includes.append(item["word_include_mask"])
         return (
             torch.stack(input_ids_list),
             torch.stack(attention_mask_list),
             torch.stack(labels_list),
+            torch.stack(word_ids_list),
+            includes,
         )
 
 
@@ -346,20 +331,18 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, clip,
     optimizer.zero_grad()
     accum_count = 0
     for step, batch in enumerate(tqdm(dataloader, desc="Training"), 1):
-        input_ids, attention_mask, labels = batch
+        input_ids, attention_mask, labels, _, _ = batch
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         labels = labels.to(device)
-        outputs = model(
-            input_ids=input_ids, attention_mask=attention_mask, labels=labels
-        )
-        loss = outputs.loss / grad_accum_steps
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            loss, _ = model(input_ids, attention_mask, labels)
+        loss = loss / grad_accum_steps
         loss.backward()
-        running_loss += outputs.loss.item()
+        running_loss += (loss.item() * grad_accum_steps)
         accum_count += 1
 
         if accum_count == grad_accum_steps or step == len(dataloader):
-            # Scale gradients for a partial final accumulation window
             if accum_count < grad_accum_steps:
                 scale = grad_accum_steps / accum_count
                 for p in model.parameters():
@@ -373,29 +356,35 @@ def train_epoch(model, dataloader, optimizer, scheduler, device, clip,
     return running_loss / len(dataloader)
 
 
-def evaluate(model, dataloader, device, id2label):
+def evaluate(model, dataloader, device, id2label_map):
     model.eval()
     running_loss = 0.0
     all_preds = []
     all_true = []
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating"):
-            input_ids, attention_mask, labels = batch
+            input_ids, attention_mask, labels, word_ids, includes = batch
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            outputs = model(
-                input_ids=input_ids, attention_mask=attention_mask, labels=labels
-            )
-            running_loss += outputs.loss.item()
-            preds = outputs.logits.argmax(-1)
-            for i in range(labels.size(0)):
-                pred_seq = []
-                label_seq = []
-                for j in range(labels.size(1)):
-                    if labels[i, j].item() != -100:
-                        pred_seq.append(id2label[preds[i, j].item()])
-                        label_seq.append(id2label[labels[i, j].item()])
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                loss, _ = model(input_ids, attention_mask, labels)
+            running_loss += loss.item()
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                paths = model.decode(input_ids, attention_mask)
+            bsz = input_ids.size(0)
+            for i in range(bsz):
+                L = int(attention_mask[i].sum().item())
+                row_w = word_ids[i, :L].tolist()
+                row_m = attention_mask[i, :L].tolist()
+                pred_ids = paths[i][:L]
+                gold_ids = labels[i, :L].tolist()
+                pred_seq = collapse_to_word_labels(
+                    row_w, pred_ids, row_m, id2label_map, includes[i]
+                )
+                label_seq = collapse_to_word_labels(
+                    row_w, gold_ids, row_m, id2label_map, includes[i]
+                )
                 all_preds.append(pred_seq)
                 all_true.append(label_seq)
     epoch_loss = running_loss / len(dataloader)
@@ -403,39 +392,38 @@ def evaluate(model, dataloader, device, id2label):
     return epoch_loss, f1
 
 
-def get_predictions(model, dataloader, device, id2label):
+def get_predictions(model, dataloader, device, id2label_map):
     model.eval()
     all_preds = []
     all_true = []
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating"):
-            input_ids, attention_mask, labels = batch
+            input_ids, attention_mask, labels, word_ids, includes = batch
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
             labels = labels.to(device)
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            preds = outputs.logits.argmax(-1)
-            for i in range(labels.size(0)):
-                pred_seq = []
-                label_seq = []
-                for j in range(labels.size(1)):
-                    if labels[i, j].item() != -100:
-                        pred_seq.append(id2label[preds[i, j].item()])
-                        label_seq.append(id2label[labels[i, j].item()])
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                paths = model.decode(input_ids, attention_mask)
+            bsz = input_ids.size(0)
+            for i in range(bsz):
+                L = int(attention_mask[i].sum().item())
+                row_w = word_ids[i, :L].tolist()
+                row_m = attention_mask[i, :L].tolist()
+                pred_ids = paths[i][:L]
+                gold_ids = labels[i, :L].tolist()
+                pred_seq = collapse_to_word_labels(
+                    row_w, pred_ids, row_m, id2label_map, includes[i]
+                )
+                label_seq = collapse_to_word_labels(
+                    row_w, gold_ids, row_m, id2label_map, includes[i]
+                )
                 all_preds.append(pred_seq)
                 all_true.append(label_seq)
     return all_preds, all_true
 
 
 def aggregate_reports(reports):
-    """Aggregate seqeval classification reports across seeds (mean ± std).
-
-    Handles the case where a label appears in some seed runs but not others
-    by treating missing labels as having 0.0 for precision/recall/f1.
-    """
     metric_keys = ["precision", "recall", "f1-score"]
-
-    # Collect the union of all keys across runs
     all_keys = []
     seen = set()
     for r in reports:
@@ -447,7 +435,6 @@ def aggregate_reports(reports):
     rows = []
     for key in all_keys:
         row = {"": key}
-        # Use support from the first report that has this key
         for r in reports:
             if key in r and "support" in r[key]:
                 support = r[key].get("support", np.nan)
@@ -455,7 +442,10 @@ def aggregate_reports(reports):
                     row["support"] = int(support)
                 break
         for m in metric_keys:
-            vals = [r[key][m] if key in r and m in r[key] else 0.0 for r in reports]
+            vals = [
+                r[key][m] if key in r and m in r[key] else 0.0
+                for r in reports
+            ]
             mean_val = np.mean(vals)
             std_val = np.std(vals)
             row[m] = f"{mean_val:.4f} ± {std_val:.4f}"
@@ -463,41 +453,12 @@ def aggregate_reports(reports):
     return pd.DataFrame(rows)
 
 
-def build_optimizer(model, lr, weight_decay=0.01):
-    no_decay = ["bias", "norm.weight"]
-    grouped_params = [
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": weight_decay,
-        },
-        {
-            "params": [
-                p
-                for n, p in model.named_parameters()
-                if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
-    ]
-    return optim.AdamW(grouped_params, lr=lr)
-
-
-def save_run_manifest(
+def save_run_config(
     path: Path,
     cfg_name: str,
     cfg: dict[str, Any],
     seeds: list[int],
-    *,
-    model_id: str,
-    max_seq_length: int,
-    grad_accum_steps: int,
-    script_name: str,
-    run_description: str,
-    extra: dict[str, Any] | None = None,
+    extra: dict[str, Any],
 ) -> None:
     try:
         git_hash = subprocess.check_output(
@@ -516,19 +477,25 @@ def save_run_manifest(
         "hyperparameters": cfg,
         "torch_version": torch.__version__,
         "transformers_version": im.version("transformers"),
-        "model_id": model_id,
-        "max_seq_length": max_seq_length,
-        "grad_accum_steps": grad_accum_steps,
-        "script": script_name,
-        "run_description": run_description,
+        "pytorch_crf_version": im.version("pytorch-crf"),
+        **extra,
     }
-    if extra:
-        payload.update(extra)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-NUM_WORKERS = 2  # Tune for Rivanna; 0 to disable multiprocess loading
+NUM_WORKERS = 2
 
+SCRIPT_NAME = "train_modernbert_doc_crf_ner.py"
+
+HP_CONFIG = {
+    "name": "doc_5e5_bs4",
+    "lr": 5e-5,
+    "crf_lr": 2.5e-4,
+    "epochs": 5,
+    "warmup_ratio": 0.10,
+    "weight_decay": 0.01,
+    "batch_size": 4,
+}
 
 if __name__ == "__main__":
     SEEDS = [21, 42, 63]
@@ -557,26 +524,23 @@ if __name__ == "__main__":
     if tokenizer.pad_token_id is None and tokenizer.eos_token is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    train_dataset = ConllDocContextDataset(
+    train_dataset = ConllDocContextDatasetCRF(
         train_docs,
         tokenizer,
-        label2id,
         max_length=MAX_SEQ_LENGTH,
         window_mode="train",
         token_overlap=DEFAULT_TOKEN_OVERLAP,
     )
-    dev_dataset = ConllDocContextDataset(
+    dev_dataset = ConllDocContextDatasetCRF(
         dev_docs,
         tokenizer,
-        label2id,
         max_length=MAX_SEQ_LENGTH,
         window_mode="eval",
         token_overlap=DEFAULT_TOKEN_OVERLAP,
     )
-    test_dataset = ConllDocContextDataset(
+    test_dataset = ConllDocContextDatasetCRF(
         test_docs,
         tokenizer,
-        label2id,
         max_length=MAX_SEQ_LENGTH,
         window_mode="eval",
         token_overlap=DEFAULT_TOKEN_OVERLAP,
@@ -593,202 +557,161 @@ if __name__ == "__main__":
             f"window_mode={ds.window_mode} overlap={ds.token_overlap}"
         )
 
-    collate_fn = ConllDocCollator(tokenizer.pad_token_id)
+    collate_fn = ConllDocCollatorCRF(
+        tokenizer.pad_token_id, label_pad_id=label2id["O"]
+    )
 
-    # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
 
-    HP_CONFIGS = [
+    cfg = HP_CONFIG
+    cfg_name = cfg["name"]
+    lr = cfg["lr"]
+    crf_lr = cfg["crf_lr"]
+    n_epochs = cfg["epochs"]
+    warmup_ratio = cfg["warmup_ratio"]
+    weight_decay = cfg["weight_decay"]
+    batch_size = cfg["batch_size"]
+
+    save_run_config(
+        results_dir / f"{OUTPUT_STEM}.json",
+        cfg_name,
+        cfg,
+        SEEDS,
         {
-            "name": "doc_4e5_bs2",
-            "lr": 4e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
-        },
-    ]
-
-    summary_rows = []
-    prev_batch_size = None
-
-    for cfg in HP_CONFIGS:
-        cfg_name = cfg["name"]
-        lr = cfg["lr"]
-        n_epochs = cfg["epochs"]
-        warmup_ratio = cfg["warmup_ratio"]
-        weight_decay = cfg["weight_decay"]
-        batch_size = cfg["batch_size"]
-
-        print(f"\n{'#' * 60}")
-        manifest_hp = {
-            **cfg,
-            "gradient_clip": CLIP,
-            "context": "document",
+            "model_id": MODEL_ID,
             "max_seq_length": MAX_SEQ_LENGTH,
             "grad_accum_steps": GRAD_ACCUM_STEPS,
-        }
+            "script": SCRIPT_NAME,
+            "run_description": RUN_DESCRIPTION,
+            "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
+            "dataset_train_rows": len(train_dataset),
+            "dataset_dev_rows": len(dev_dataset),
+            "dataset_test_rows": len(test_dataset),
+            "dataset_train_multi_window_overflow": (
+                train_dataset.n_multi_window_overflow
+            ),
+            "dataset_dev_multi_window_overflow": (
+                dev_dataset.n_multi_window_overflow
+            ),
+            "dataset_test_multi_window_overflow": (
+                test_dataset.n_multi_window_overflow
+            ),
+        },
+    )
+
+    print(f"\n{'#' * 60}")
+    print(
+        f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
+        f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+    )
+    print(f"{'#' * 60}")
+
+    reports = []
+    best_val_f1s = []
+    best_epochs = []
+
+    for run, seed in enumerate(SEEDS, 1):
+        print(f"\n{'=' * 50}")
+        print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
+        print("=" * 50)
+        set_seeds_to(seed)
+        loader_generator.manual_seed(seed)
+
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
+            generator=loader_generator,
+        )
+        dev_loader = DataLoader(
+            dev_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
+        )
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            num_workers=NUM_WORKERS,
+            persistent_workers=NUM_WORKERS > 0,
+            pin_memory=True,
+            worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
+        )
+
+        model = ModernBertTokenCRF(
+            MODEL_ID, trust_remote_code=True
+        ).to(device)
+        model.base.gradient_checkpointing_enable()
+
+        opt_steps_per_epoch = (
+            (len(train_loader) + GRAD_ACCUM_STEPS - 1) // GRAD_ACCUM_STEPS
+        )
+        total_steps = opt_steps_per_epoch * n_epochs
+        warmup_steps = int(warmup_ratio * total_steps)
+        optimizer = build_crf_optimizer(
+            model, lr=lr, crf_lr=crf_lr, weight_decay=weight_decay
+        )
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=total_steps,
+        )
+
+        best_val_f1 = 0.0
+        best_epoch = -1
+        best_state_dict = None
+        for epoch in range(n_epochs):
+            print(f"\nEpoch {epoch + 1}/{n_epochs}")
+            print("-" * 30)
+            train_loss = train_epoch(
+                model, train_loader, optimizer, scheduler, device, CLIP,
+                grad_accum_steps=GRAD_ACCUM_STEPS,
+            )
+            val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
+            print(f"Train Loss: {train_loss:.3f}")
+            print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
+            if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                best_epoch = epoch + 1
+                best_state_dict = copy.deepcopy(model.state_dict())
+
+        best_val_f1s.append(best_val_f1)
+        best_epochs.append(best_epoch)
+        if best_state_dict is not None:
+            model.load_state_dict(best_state_dict)
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
-            f"max_seq_length={MAX_SEQ_LENGTH}, clip={CLIP}, "
-            f"grad_accum={GRAD_ACCUM_STEPS}"
-        )
-        print(f"{'#' * 60}")
-
-        save_run_manifest(
-            results_dir / f"{OUTPUT_STEM}.json",
-            cfg_name,
-            manifest_hp,
-            SEEDS,
-            model_id=MODEL_ID,
-            max_seq_length=MAX_SEQ_LENGTH,
-            grad_accum_steps=GRAD_ACCUM_STEPS,
-            script_name="train_modernbert_doc_ner.py",
-            run_description=RUN_DESCRIPTION,
-            extra={
-                "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
-                "dataset_train_rows": len(train_dataset),
-                "dataset_dev_rows": len(dev_dataset),
-                "dataset_test_rows": len(test_dataset),
-                "dataset_train_multi_window_overflow": (
-                    train_dataset.n_multi_window_overflow
-                ),
-                "dataset_dev_multi_window_overflow": (
-                    dev_dataset.n_multi_window_overflow
-                ),
-                "dataset_test_multi_window_overflow": (
-                    test_dataset.n_multi_window_overflow
-                ),
-            },
+            f"[Config {cfg_name}] Seed {seed} best dev F1 "
+            f"{best_val_f1:.4f} at epoch {best_epoch}; "
+            "restored best checkpoint for test evaluation."
         )
 
-        reports = []
-        best_val_f1s = []
-        best_epochs = []
-
-        for run, seed in enumerate(SEEDS, 1):
-            print(f"\n{'=' * 50}")
-            print(f"[Config {cfg_name}] Run {run}/{len(SEEDS)} — Seed {seed}")
-            print("=" * 50)
-            set_seeds_to(seed)
-            loader_generator.manual_seed(seed)
-
-            # Recreate loaders per seed so shuffle order is deterministic
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-                generator=loader_generator,
-            )
-            dev_loader = DataLoader(
-                dev_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-            )
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                collate_fn=collate_fn,
-                num_workers=NUM_WORKERS,
-                persistent_workers=NUM_WORKERS > 0,
-                worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
-            )
-
-            model = AutoModelForTokenClassification.from_pretrained(
-                MODEL_ID,
-                num_labels=len(label_list),
-                id2label=id2label,
-                label2id=label2id,
-                trust_remote_code=True,
-            ).to(device)
-
-            opt_steps_per_epoch = (
-                (len(train_loader) + GRAD_ACCUM_STEPS - 1) // GRAD_ACCUM_STEPS
-            )
-            total_steps = opt_steps_per_epoch * n_epochs
-            warmup_steps = int(warmup_ratio * total_steps)
-            optimizer = build_optimizer(model, lr=lr, weight_decay=weight_decay)
-            scheduler = get_linear_schedule_with_warmup(
-                optimizer,
-                num_warmup_steps=warmup_steps,
-                num_training_steps=total_steps,
-            )
-
-            best_val_f1 = 0.0
-            best_epoch = -1
-            best_state_dict = None
-            for epoch in range(n_epochs):
-                print(f"\nEpoch {epoch + 1}/{n_epochs}")
-                print("-" * 30)
-                train_loss = train_epoch(
-                    model, train_loader, optimizer, scheduler, device, CLIP,
-                    grad_accum_steps=GRAD_ACCUM_STEPS,
-                )
-                val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
-                print(f"Train Loss: {train_loss:.3f}")
-                print(f"Val Loss: {val_loss:.3f}, Val F1: {val_f1:.4f}")
-                if val_f1 > best_val_f1:
-                    best_val_f1 = val_f1
-                    best_epoch = epoch + 1
-                    best_state_dict = copy.deepcopy(model.state_dict())
-
-            best_val_f1s.append(best_val_f1)
-            best_epochs.append(best_epoch)
-            if best_state_dict is not None:
-                model.load_state_dict(best_state_dict)
-            print(
-                f"[Config {cfg_name}] Seed {seed} best dev F1 "
-                f"{best_val_f1:.4f} at epoch {best_epoch}; "
-                "restored best checkpoint for test evaluation."
-            )
-
-            all_preds, all_true = get_predictions(model, test_loader, device, id2label)
-            report = classification_report(all_true, all_preds, output_dict=True)
-            reports.append(report)
-            del model
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-        df = aggregate_reports(reports).set_index("")
-        print(f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) — mean ± std ===")
-        print(df.to_string())
-
-        csv_name = f"{OUTPUT_STEM}.csv"
-        df.to_csv(results_dir / csv_name)
-        print(f"Saved to {csv_name}")
-
-        test_micro_f1 = df.loc["micro avg", "f1-score"]
-        dev_f1_mean = float(np.mean(best_val_f1s))
-        dev_f1_std = float(np.std(best_val_f1s))
-        summary_rows.append(
-            {
-                "config": cfg_name,
-                "lr": lr,
-                "epochs": n_epochs,
-                "warmup_ratio": warmup_ratio,
-                "weight_decay": weight_decay,
-                "batch_size": batch_size,
-                "max_seq_length": MAX_SEQ_LENGTH,
-                "grad_accum_steps": GRAD_ACCUM_STEPS,
-                "gradient_clip": CLIP,
-                "test_micro_f1": test_micro_f1,
-                "best_dev_f1": f"{dev_f1_mean:.4f} ± {dev_f1_std:.4f}",
-                "best_epoch_mean": f"{np.mean(best_epochs):.2f}",
-            }
+        all_preds, all_true = get_predictions(
+            model, test_loader, device, id2label
         )
+        report = classification_report(all_true, all_preds, output_dict=True)
+        reports.append(report)
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-    print("\n" + "=" * 70)
-    print("RUN SUMMARY")
-    print("=" * 70)
-    summary_df = pd.DataFrame(summary_rows)
-    print(summary_df.to_string(index=False))
+    df = aggregate_reports(reports).set_index("")
+    print(
+        f"\n=== Config {cfg_name} Test Results (seeds {SEEDS}) "
+        "— mean ± std ==="
+    )
+    print(df.to_string())
+
+    csv_name = f"{OUTPUT_STEM}.csv"
+    df.to_csv(results_dir / csv_name)
+    print(f"Saved to {csv_name}")

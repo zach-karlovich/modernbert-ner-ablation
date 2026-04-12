@@ -1,9 +1,11 @@
-"""Fine-tune ModernBERT-base on CoNLL-2003 NER with in-document context (8192 tokens).
+"""Fine-tune bert-base-cased on CoNLL-2003 NER with in-document context (512 tokens).
 
-Run identity: `-DOCSTART-` respected; sliding windows; softmax head; seqeval. Doc side of
-the 2×2 ablation vs sentence-level + CRF variants. Single HP config **doc_4e5_bs2**
-(lr 4e-5) — best test micro F1 in the doc-context linear sweep. Outputs
-`ner_mbert_doc_best.{csv,json}`. For lr 5e-5 use a one-off rename or restore sweep list."""
+Same packing / sliding-window idea as train_modernbert_doc_ner.py, but BERT-base caps
+at 512 subwords so cross-sentence context is less than ModernBERT at 8192.
+
+Run identity: `-DOCSTART-` respected; per-sentence labels with neighbor context;
+softmax head; seqeval. Pairs with train_bert_ner.py (sentence-only reference).
+Outputs `ner_bert_doc_ref.{csv,json}`. HPs in `HP_CONFIGS` below."""
 
 import copy
 import json
@@ -34,15 +36,15 @@ from sliding_window_conll import (
     word_window_from_start,
 )
 
-MODEL_ID = "answerdotai/ModernBERT-base"
-MAX_SEQ_LENGTH = 8192
-GRAD_ACCUM_STEPS = 8
-OUTPUT_STEM = "ner_mbert_doc_best"
+MODEL_ID = "bert-base-cased"
+MAX_SEQ_LENGTH = 512
+GRAD_ACCUM_STEPS = 2
+OUTPUT_STEM = "ner_bert_doc_ref"
 
 RUN_DESCRIPTION = (
-    "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window "
-    "packing like BERT doc script but full long context. Config doc_4e5_bs2 in "
-    "HP_CONFIGS. Writes ner_mbert_doc_best.{csv,json}."
+    "Document-context bert-base-cased on CoNLL-2003; windows up to 512 subwords; "
+    "same sliding-window machinery as ModernBERT doc trainer but BERT length cap. "
+    "Optimizer HPs aligned with train_bert_ner.py. Writes ner_bert_doc_ref.{csv,json}."
 )
 
 
@@ -117,7 +119,7 @@ def seed_worker(worker_info):
 
 
 class ConllDocContextDataset(Dataset):
-    """Per-sentence supervision with same-document neighbor context (ModernBERT length)."""
+    """Per-sentence supervision with same-document neighbor context (BERT max length)."""
 
     def __init__(
         self,
@@ -464,7 +466,7 @@ def aggregate_reports(reports):
 
 
 def build_optimizer(model, lr, weight_decay=0.01):
-    no_decay = ["bias", "norm.weight"]
+    no_decay = ["bias", "LayerNorm.weight"]
     grouped_params = [
         {
             "params": [
@@ -553,9 +555,7 @@ if __name__ == "__main__":
     print(f"Dev: {sum(len(doc) for doc in dev_docs)} sentences")
     print(f"Test: {sum(len(doc) for doc in test_docs)} sentences")
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    if tokenizer.pad_token_id is None and tokenizer.eos_token is not None:
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 
     train_dataset = ConllDocContextDataset(
         train_docs,
@@ -600,12 +600,12 @@ if __name__ == "__main__":
 
     HP_CONFIGS = [
         {
-            "name": "doc_4e5_bs2",
-            "lr": 4e-5,
+            "name": "bert_doc_aligned",
+            "lr": 5e-5,
             "epochs": 5,
             "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 2,
+            "weight_decay": 1e-5,
+            "batch_size": 16,
         },
     ]
 
@@ -644,7 +644,7 @@ if __name__ == "__main__":
             model_id=MODEL_ID,
             max_seq_length=MAX_SEQ_LENGTH,
             grad_accum_steps=GRAD_ACCUM_STEPS,
-            script_name="train_modernbert_doc_ner.py",
+            script_name="train_bert_doc_ner.py",
             run_description=RUN_DESCRIPTION,
             extra={
                 "sliding_window_token_overlap": DEFAULT_TOKEN_OVERLAP,
@@ -709,7 +709,6 @@ if __name__ == "__main__":
                 num_labels=len(label_list),
                 id2label=id2label,
                 label2id=label2id,
-                trust_remote_code=True,
             ).to(device)
 
             opt_steps_per_epoch = (
