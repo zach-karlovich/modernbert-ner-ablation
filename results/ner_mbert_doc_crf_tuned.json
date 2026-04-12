@@ -1,0 +1,33 @@
+{
+  "config_name": "doc_5e5_bs4",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "a1ea08bb03cf275ec5d7502ca5f910d4a990b795",
+  "hyperparameters": {
+    "name": "doc_5e5_bs4",
+    "lr": 5e-05,
+    "crf_lr": 0.00025,
+    "epochs": 5,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 4
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "pytorch_crf_version": "0.7.2",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 8192,
+  "grad_accum_steps": 4,
+  "script": "train_modernbert_doc_crf_ner.py",
+  "run_description": "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config doc_5e5_bs4 in HP_CONFIG. Writes ner_mbert_doc_crf_tuned.{csv,json}.",
+  "sliding_window_token_overlap": 128,
+  "dataset_train_rows": 14041,
+  "dataset_dev_rows": 3250,
+  "dataset_test_rows": 3453,
+  "dataset_train_multi_window_overflow": 0,
+  "dataset_dev_multi_window_overflow": 0,
+  "dataset_test_multi_window_overflow": 0
+}
