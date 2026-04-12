@@ -18,14 +18,19 @@ class ModernBertTokenCRF(nn.Module):
         model_id: str,
         *,
         trust_remote_code: bool = False,
+        classifier_dropout: float | None = None,
     ) -> None:
         super().__init__()
+        extra_kwargs: dict[str, object] = {}
+        if classifier_dropout is not None:
+            extra_kwargs["classifier_dropout"] = classifier_dropout
         self.base = AutoModelForTokenClassification.from_pretrained(
             model_id,
             num_labels=len(label_list),
             id2label=id2label,
             label2id=label2id,
             trust_remote_code=trust_remote_code,
+            **extra_kwargs,
         )
         self.crf = make_constrained_crf()
 
