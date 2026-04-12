@@ -1,0 +1,35 @@
+{
+  "config_name": "doc_4e5_bs4_crf_v2",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "4c722aee4a576bcc84302079df21e79c46da98fb",
+  "hyperparameters": {
+    "name": "doc_4e5_bs4_crf_v2",
+    "lr": 4e-05,
+    "crf_lr": 0.0005,
+    "epochs": 8,
+    "early_stopping_patience": 3,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 4,
+    "classifier_dropout": 0.1
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "pytorch_crf_version": "0.7.2",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 8192,
+  "grad_accum_steps": 4,
+  "script": "train_modernbert_doc_crf_ner.py",
+  "run_description": "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config doc_4e5_bs4_crf_v2: lr 4e-5, crf_lr 5e-4, classifier_dropout 0.1, 8 epochs + early stopping (patience 3). Writes ner_mbert_doc_crf_v2.{csv,json}.",
+  "sliding_window_token_overlap": 128,
+  "dataset_train_rows": 14041,
+  "dataset_dev_rows": 3250,
+  "dataset_test_rows": 3453,
+  "dataset_train_multi_window_overflow": 0,
+  "dataset_dev_multi_window_overflow": 0,
+  "dataset_test_multi_window_overflow": 0
+}

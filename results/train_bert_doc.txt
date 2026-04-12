@@ -1,5 +1,6 @@
 Using device: cuda
 Model: bert-base-cased, max_seq_length=512, grad_accum_steps=2
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
 Train: 14041 sentences
 Dev: 3250 sentences
 Test: 3453 sentences
@@ -8,113 +9,159 @@ Dev dataset: base_sentences=3250 rows=3250 multi_window_overflow_sources=0 windo
 Test dataset: base_sentences=3453 rows=3453 multi_window_overflow_sources=0 window_mode=eval overlap=128
 
 ############################################################
-CONFIG bert_doc_aligned: lr=5e-05, epochs=5, warmup=0.1, wd=1e-05, bs=16, max_seq_length=512, clip=1, grad_accum=2
+CONFIG bert_doc_v2: lr=5e-05, epochs=8, early_stopping_patience=3, warmup=0.1, wd=0.01, bs=16, max_seq_length=512, clip=1, grad_accum=2
 ############################################################
 
 ==================================================
-[Config bert_doc_aligned] Run 1/3 — Seed 21
+[Config bert_doc_v2] Run 1/3 — Seed 21
 ==================================================
 
-Epoch 1/5
+Epoch 1/8
 ------------------------------
-Train Loss: 0.266
-Val Loss: 0.054, Val F1: 0.8996
+Train Loss: 0.309
+Val Loss: 0.056, Val F1: 0.9106
 
-Epoch 2/5
+Epoch 2/8
 ------------------------------
-Train Loss: 0.037
-Val Loss: 0.044, Val F1: 0.9231
+Train Loss: 0.041
+Val Loss: 0.047, Val F1: 0.9163
 
-Epoch 3/5
+Epoch 3/8
 ------------------------------
-Train Loss: 0.020
-Val Loss: 0.043, Val F1: 0.9308
+Train Loss: 0.023
+Val Loss: 0.046, Val F1: 0.9372
 
-Epoch 4/5
+Epoch 4/8
 ------------------------------
-Train Loss: 0.011
-Val Loss: 0.045, Val F1: 0.9359
+Train Loss: 0.014
+Val Loss: 0.046, Val F1: 0.9332
 
-Epoch 5/5
+Epoch 5/8
 ------------------------------
-Train Loss: 0.007
-Val Loss: 0.047, Val F1: 0.9326
-[Config bert_doc_aligned] Seed 21 best dev F1 0.9359 at epoch 4; restored best checkpoint for test evaluation.
+Train Loss: 0.009
+Val Loss: 0.050, Val F1: 0.9307
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.057, Val F1: 0.9408
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.056, Val F1: 0.9367
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.056, Val F1: 0.9373
+[Config bert_doc_v2] Seed 21 best dev F1 0.9408 at epoch 6; restored best checkpoint for test evaluation.
 
 ==================================================
-[Config bert_doc_aligned] Run 2/3 — Seed 42
+[Config bert_doc_v2] Run 2/3 — Seed 42
 ==================================================
 
-Epoch 1/5
+Epoch 1/8
 ------------------------------
-Train Loss: 0.263
-Val Loss: 0.062, Val F1: 0.9095
+Train Loss: 0.310
+Val Loss: 0.066, Val F1: 0.8983
 
-Epoch 2/5
+Epoch 2/8
 ------------------------------
-Train Loss: 0.037
-Val Loss: 0.047, Val F1: 0.9309
+Train Loss: 0.041
+Val Loss: 0.051, Val F1: 0.9196
 
-Epoch 3/5
+Epoch 3/8
 ------------------------------
-Train Loss: 0.020
-Val Loss: 0.046, Val F1: 0.9407
+Train Loss: 0.023
+Val Loss: 0.047, Val F1: 0.9278
 
-Epoch 4/5
+Epoch 4/8
 ------------------------------
-Train Loss: 0.012
-Val Loss: 0.045, Val F1: 0.9323
+Train Loss: 0.014
+Val Loss: 0.049, Val F1: 0.9299
 
-Epoch 5/5
+Epoch 5/8
 ------------------------------
-Train Loss: 0.007
-Val Loss: 0.046, Val F1: 0.9380
-[Config bert_doc_aligned] Seed 42 best dev F1 0.9407 at epoch 3; restored best checkpoint for test evaluation.
+Train Loss: 0.009
+Val Loss: 0.050, Val F1: 0.9379
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.055, Val F1: 0.9253
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.054, Val F1: 0.9333
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.055, Val F1: 0.9358
+Early stopping: no dev F1 improvement for 3 epoch(s).
+[Config bert_doc_v2] Seed 42 best dev F1 0.9379 at epoch 5; restored best checkpoint for test evaluation.
 
 ==================================================
-[Config bert_doc_aligned] Run 3/3 — Seed 63
+[Config bert_doc_v2] Run 3/3 — Seed 63
 ==================================================
 
-Epoch 1/5
+Epoch 1/8
 ------------------------------
-Train Loss: 0.267
-Val Loss: 0.055, Val F1: 0.9152
+Train Loss: 0.313
+Val Loss: 0.055, Val F1: 0.9194
 
-Epoch 2/5
+Epoch 2/8
 ------------------------------
-Train Loss: 0.038
-Val Loss: 0.045, Val F1: 0.9337
+Train Loss: 0.042
+Val Loss: 0.048, Val F1: 0.9261
 
-Epoch 3/5
+Epoch 3/8
 ------------------------------
-Train Loss: 0.020
-Val Loss: 0.044, Val F1: 0.9332
+Train Loss: 0.023
+Val Loss: 0.051, Val F1: 0.9320
 
-Epoch 4/5
+Epoch 4/8
 ------------------------------
-Train Loss: 0.011
-Val Loss: 0.046, Val F1: 0.9348
+Train Loss: 0.015
+Val Loss: 0.050, Val F1: 0.9298
 
-Epoch 5/5
+Epoch 5/8
 ------------------------------
-Train Loss: 0.008
-Val Loss: 0.047, Val F1: 0.9382
-[Config bert_doc_aligned] Seed 63 best dev F1 0.9382 at epoch 5; restored best checkpoint for test evaluation.
+Train Loss: 0.009
+Val Loss: 0.053, Val F1: 0.9324
 
-=== Config bert_doc_aligned Test Results (seeds [21, 42, 63]) — mean ± std ===
+Epoch 6/8
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.053, Val F1: 0.9305
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.055, Val F1: 0.9355
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.057, Val F1: 0.9352
+[Config bert_doc_v2] Seed 63 best dev F1 0.9355 at epoch 7; restored best checkpoint for test evaluation.
+
+=== Config bert_doc_v2 Test Results (seeds [21, 42, 63]) — mean ± std ===
               support        precision           recall         f1-score
                                                                         
-LOC              1668  0.9056 ± 0.0138  0.9099 ± 0.0003  0.9077 ± 0.0068
-MISC              702  0.7686 ± 0.0082  0.8148 ± 0.0031  0.7910 ± 0.0047
-ORG              1661  0.8421 ± 0.0015  0.8991 ± 0.0074  0.8696 ± 0.0028
-PER              1617  0.9308 ± 0.0129  0.9544 ± 0.0015  0.9424 ± 0.0072
-micro avg        5648  0.8760 ± 0.0048  0.9076 ± 0.0016  0.8915 ± 0.0031
-macro avg        5648  0.8618 ± 0.0036  0.8945 ± 0.0010  0.8777 ± 0.0022
-weighted avg     5648  0.8771 ± 0.0055  0.9076 ± 0.0016  0.8919 ± 0.0033
-Saved to ner_bert_doc_ref.csv
+LOC              1668  0.9081 ± 0.0055  0.9057 ± 0.0076  0.9068 ± 0.0011
+MISC              702  0.7495 ± 0.0103  0.8229 ± 0.0095  0.7844 ± 0.0025
+ORG              1661  0.8416 ± 0.0043  0.8934 ± 0.0030  0.8667 ± 0.0037
+PER              1617  0.9269 ± 0.0187  0.9462 ± 0.0000  0.9364 ± 0.0096
+micro avg        5648  0.8723 ± 0.0054  0.9034 ± 0.0014  0.8876 ± 0.0034
+macro avg        5648  0.8565 ± 0.0047  0.8920 ± 0.0020  0.8736 ± 0.0033
+weighted avg     5648  0.8742 ± 0.0060  0.9034 ± 0.0014  0.8883 ± 0.0036
+Saved to ner_bert_doc_ref_v2.csv
 
 ======================================================================
 RUN SUMMARY
 ======================================================================
-          config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  grad_accum_steps  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
-bert_doc_aligned 0.00005       5           0.1       0.00001          16             512                 2              1 0.8915 ± 0.0031 0.9383 ± 0.0020            4.00
+     config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  grad_accum_steps  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+bert_doc_v2 0.00005       8           0.1          0.01          16             512                 2              1 0.8876 ± 0.0034 0.9381 ± 0.0022            6.00

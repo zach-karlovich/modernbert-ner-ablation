@@ -1,0 +1,29 @@
+{
+  "config_name": "B_dropout_ls",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "4c722aee4a576bcc84302079df21e79c46da98fb",
+  "hyperparameters": {
+    "name": "B_dropout_ls",
+    "lr": 5e-05,
+    "epochs": 8,
+    "early_stopping_patience": 3,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.05,
+    "batch_size": 16,
+    "max_seq_length": 512,
+    "classifier_dropout": 0.2,
+    "label_smoothing": 0.1,
+    "gradient_clip": 1,
+    "context": "sentence"
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 512,
+  "script": "train_modernbert_ner.py",
+  "run_description": "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. Config B_dropout_ls: classifier_dropout 0.2, label_smoothing 0.1, wd 0.05, 8 epochs + early stopping. Writes ner_mbert_sent_v2_<config_name>.{csv,json}."
+}

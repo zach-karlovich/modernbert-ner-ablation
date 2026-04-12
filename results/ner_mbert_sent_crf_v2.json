@@ -1,0 +1,27 @@
+{
+  "config_name": "G_reg",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "4c722aee4a576bcc84302079df21e79c46da98fb",
+  "hyperparameters": {
+    "name": "G_reg",
+    "lr": 6e-05,
+    "crf_lr": 0.0003,
+    "epochs": 12,
+    "early_stopping_patience": 3,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.05,
+    "batch_size": 32,
+    "classifier_dropout": 0.15
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "pytorch_crf_version": "0.7.2",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 512,
+  "script": "train_modernbert_crf_ner.py",
+  "run_description": "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G_reg: classifier_dropout 0.15, wd 0.05, 12 epochs + early stopping (patience 3). Writes ner_mbert_sent_crf_v2.{csv,json}."
+}
