@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
+from conll2003_expectations import assert_conll2003_dataset
 from conll2003_labels import id2label, label2id
 from dense_bio_labels import (
     assign_dense_bio_labels,
@@ -40,11 +41,12 @@ MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 4
 WORD_PAD_ID = -99
-OUTPUT_STEM = "ner_mbert_doc_crf_tuned"
+OUTPUT_STEM = "ner_mbert_doc_crf_v2"
 
 RUN_DESCRIPTION = (
     "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config "
-    "doc_5e5_bs4 in HP_CONFIG. Writes ner_mbert_doc_crf_tuned.{csv,json}."
+    "doc_4e5_bs4_crf_v2: lr 4e-5, crf_lr 5e-4, classifier_dropout 0.1, 8 epochs + "
+    "early stopping (patience 3). Writes ner_mbert_doc_crf_v2.{csv,json}."
 )
 
 
@@ -488,13 +490,15 @@ NUM_WORKERS = 2
 SCRIPT_NAME = "train_modernbert_doc_crf_ner.py"
 
 HP_CONFIG = {
-    "name": "doc_5e5_bs4",
-    "lr": 5e-5,
-    "crf_lr": 2.5e-4,
-    "epochs": 5,
+    "name": "doc_4e5_bs4_crf_v2",
+    "lr": 4e-5,
+    "crf_lr": 5e-4,
+    "epochs": 8,
+    "early_stopping_patience": 3,
     "warmup_ratio": 0.10,
     "weight_decay": 0.01,
     "batch_size": 4,
+    "classifier_dropout": 0.1,
 }
 
 if __name__ == "__main__":
@@ -510,6 +514,8 @@ if __name__ == "__main__":
     )
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
 
@@ -571,6 +577,8 @@ if __name__ == "__main__":
     warmup_ratio = cfg["warmup_ratio"]
     weight_decay = cfg["weight_decay"]
     batch_size = cfg["batch_size"]
+    early_stopping_patience = cfg.get("early_stopping_patience")
+    classifier_dropout = cfg.get("classifier_dropout")
 
     save_run_config(
         results_dir / f"{OUTPUT_STEM}.json",
@@ -600,9 +608,19 @@ if __name__ == "__main__":
     )
 
     print(f"\n{'#' * 60}")
+    es_note = (
+        f", early_stopping_patience={early_stopping_patience}"
+        if early_stopping_patience is not None
+        else ""
+    )
+    cd_note = (
+        f", classifier_dropout={classifier_dropout}"
+        if classifier_dropout is not None
+        else ""
+    )
     print(
-        f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
-        f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+        f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}{es_note}, "
+        f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}{cd_note}"
     )
     print(f"{'#' * 60}")
 
@@ -649,8 +667,11 @@ if __name__ == "__main__":
             worker_init_fn=seed_worker if NUM_WORKERS > 0 else None,
         )
 
+        crf_kwargs: dict[str, object] = {}
+        if classifier_dropout is not None:
+            crf_kwargs["classifier_dropout"] = classifier_dropout
         model = ModernBertTokenCRF(
-            MODEL_ID, trust_remote_code=True
+            MODEL_ID, trust_remote_code=True, **crf_kwargs
         ).to(device)
         model.base.gradient_checkpointing_enable()
 
@@ -671,6 +692,7 @@ if __name__ == "__main__":
         best_val_f1 = 0.0
         best_epoch = -1
         best_state_dict = None
+        epochs_no_improve = 0
         for epoch in range(n_epochs):
             print(f"\nEpoch {epoch + 1}/{n_epochs}")
             print("-" * 30)
@@ -685,6 +707,18 @@ if __name__ == "__main__":
                 best_val_f1 = val_f1
                 best_epoch = epoch + 1
                 best_state_dict = copy.deepcopy(model.state_dict())
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                if (
+                    early_stopping_patience is not None
+                    and epochs_no_improve >= early_stopping_patience
+                ):
+                    print(
+                        f"Early stopping: no dev F1 improvement for "
+                        f"{early_stopping_patience} epoch(s)."
+                    )
+                    break
 
         best_val_f1s.append(best_val_f1)
         best_epochs.append(best_epoch)
