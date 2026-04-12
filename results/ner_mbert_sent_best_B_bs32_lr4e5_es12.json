@@ -1,0 +1,27 @@
+{
+  "config_name": "B_bs32_lr4e5_es12",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "b10f18cac6d026ffb04cf43b53624d1b3da2ab0f",
+  "hyperparameters": {
+    "name": "B_bs32_lr4e5_es12",
+    "lr": 4e-05,
+    "epochs": 12,
+    "early_stopping_patience": 3,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 32,
+    "max_seq_length": 512,
+    "gradient_clip": 1,
+    "context": "sentence"
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 512,
+  "script": "train_modernbert_ner.py",
+  "run_description": "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. Writes ner_mbert_sent_best_<config_name>.{csv,json} per HP_CONFIGS entry."
+}

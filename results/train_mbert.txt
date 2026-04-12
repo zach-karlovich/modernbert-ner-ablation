@@ -1,0 +1,594 @@
+Using device: cuda
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG B_lr3e5_es12: lr=3e-05, max_epochs=12, early_stopping_patience=3, warmup=0.1, wd=0.01, bs=16, max_seq_length=512, clip=1
+############################################################
+
+==================================================
+[Config B_lr3e5_es12] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.412
+Val Loss: 0.092, Val F1: 0.8633
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.050
+Val Loss: 0.046, Val F1: 0.9273
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.019
+Val Loss: 0.051, Val F1: 0.9269
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.054, Val F1: 0.9438
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.071, Val F1: 0.9370
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.063, Val F1: 0.9444
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.068, Val F1: 0.9395
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.076, Val F1: 0.9431
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.074, Val F1: 0.9447
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.077, Val F1: 0.9442
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.079, Val F1: 0.9455
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.080, Val F1: 0.9457
+[Config B_lr3e5_es12] Seed 21 best dev F1 0.9457 at epoch 12; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_lr3e5_es12] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.330
+Val Loss: 0.071, Val F1: 0.8798
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.051
+Val Loss: 0.047, Val F1: 0.9309
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.018
+Val Loss: 0.047, Val F1: 0.9392
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.057, Val F1: 0.9344
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.061, Val F1: 0.9392
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.070, Val F1: 0.9370
+Early stopping: no dev F1 improvement for 3 epoch(s).
+[Config B_lr3e5_es12] Seed 42 best dev F1 0.9392 at epoch 3; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_lr3e5_es12] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.352
+Val Loss: 0.097, Val F1: 0.8606
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.052
+Val Loss: 0.051, Val F1: 0.9250
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.019
+Val Loss: 0.052, Val F1: 0.9284
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.008
+Val Loss: 0.052, Val F1: 0.9372
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.063, Val F1: 0.9363
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.064, Val F1: 0.9447
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.070, Val F1: 0.9399
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.075, Val F1: 0.9428
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.077, Val F1: 0.9413
+Early stopping: no dev F1 improvement for 3 epoch(s).
+[Config B_lr3e5_es12] Seed 63 best dev F1 0.9447 at epoch 6; restored best checkpoint for test evaluation.
+
+=== Config B_lr3e5_es12 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9162 ± 0.0066  0.9127 ± 0.0045  0.9144 ± 0.0026
+MISC              702  0.7555 ± 0.0109  0.8077 ± 0.0058  0.7807 ± 0.0050
+ORG              1661  0.8445 ± 0.0108  0.8760 ± 0.0092  0.8599 ± 0.0024
+PER              1617  0.9489 ± 0.0096  0.9577 ± 0.0059  0.9532 ± 0.0048
+micro avg        5648  0.8830 ± 0.0028  0.9017 ± 0.0030  0.8923 ± 0.0029
+macro avg        5648  0.8663 ± 0.0039  0.8885 ± 0.0023  0.8770 ± 0.0032
+weighted avg     5648  0.8845 ± 0.0027  0.9017 ± 0.0030  0.8929 ± 0.0029
+Saved to ner_mbert_sent_best_B_lr3e5_es12.csv
+
+############################################################
+CONFIG B_disc4e5_es12: lr=4e-05, head_lr=0.0001, max_epochs=12, early_stopping_patience=3, warmup=0.1, wd=0.01, bs=16, max_seq_length=512, clip=1
+############################################################
+
+==================================================
+[Config B_disc4e5_es12] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.375
+Val Loss: 0.073, Val F1: 0.8810
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.048
+Val Loss: 0.045, Val F1: 0.9298
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.018
+Val Loss: 0.050, Val F1: 0.9411
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.008
+Val Loss: 0.050, Val F1: 0.9362
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.060, Val F1: 0.9404
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.065, Val F1: 0.9419
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.066, Val F1: 0.9455
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.079, Val F1: 0.9422
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.095, Val F1: 0.9394
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.088, Val F1: 0.9437
+Early stopping: no dev F1 improvement for 3 epoch(s).
+[Config B_disc4e5_es12] Seed 21 best dev F1 0.9455 at epoch 7; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_disc4e5_es12] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.297
+Val Loss: 0.071, Val F1: 0.8760
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.045
+Val Loss: 0.048, Val F1: 0.9256
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.016
+Val Loss: 0.051, Val F1: 0.9340
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.060, Val F1: 0.9365
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.063, Val F1: 0.9440
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.067, Val F1: 0.9398
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.074, Val F1: 0.9466
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.074, Val F1: 0.9473
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.077, Val F1: 0.9464
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.079, Val F1: 0.9485
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.082, Val F1: 0.9490
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.082, Val F1: 0.9494
+[Config B_disc4e5_es12] Seed 42 best dev F1 0.9494 at epoch 12; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_disc4e5_es12] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.310
+Val Loss: 0.086, Val F1: 0.8746
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.044
+Val Loss: 0.043, Val F1: 0.9382
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.047, Val F1: 0.9377
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.052, Val F1: 0.9418
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.065, Val F1: 0.9373
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.061, Val F1: 0.9442
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.078, Val F1: 0.9396
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.075, Val F1: 0.9456
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.079, Val F1: 0.9487
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.085, Val F1: 0.9446
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.083, Val F1: 0.9474
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.082, Val F1: 0.9490
+[Config B_disc4e5_es12] Seed 63 best dev F1 0.9490 at epoch 12; restored best checkpoint for test evaluation.
+
+=== Config B_disc4e5_es12 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9098 ± 0.0115  0.9191 ± 0.0064  0.9143 ± 0.0033
+MISC              702  0.7948 ± 0.0116  0.8101 ± 0.0037  0.8023 ± 0.0058
+ORG              1661  0.8490 ± 0.0053  0.8886 ± 0.0088  0.8683 ± 0.0053
+PER              1617  0.9629 ± 0.0079  0.9497 ± 0.0042  0.9562 ± 0.0033
+micro avg        5648  0.8916 ± 0.0027  0.9053 ± 0.0042  0.8984 ± 0.0034
+macro avg        5648  0.8791 ± 0.0038  0.8919 ± 0.0038  0.8853 ± 0.0037
+weighted avg     5648  0.8928 ± 0.0025  0.9053 ± 0.0042  0.8989 ± 0.0034
+Saved to ner_mbert_sent_best_B_disc4e5_es12.csv
+
+############################################################
+CONFIG B_bs32_lr4e5_es12: lr=4e-05, max_epochs=12, early_stopping_patience=3, warmup=0.1, wd=0.01, bs=32, max_seq_length=512, clip=1
+############################################################
+
+==================================================
+[Config B_bs32_lr4e5_es12] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.482
+Val Loss: 0.099, Val F1: 0.8218
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.050
+Val Loss: 0.048, Val F1: 0.9210
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.017
+Val Loss: 0.043, Val F1: 0.9385
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.047, Val F1: 0.9347
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.058, Val F1: 0.9427
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.060, Val F1: 0.9399
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.061, Val F1: 0.9410
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.060, Val F1: 0.9437
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.062, Val F1: 0.9440
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.063, Val F1: 0.9443
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.064, Val F1: 0.9419
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.065, Val F1: 0.9426
+[Config B_bs32_lr4e5_es12] Seed 21 best dev F1 0.9443 at epoch 10; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_bs32_lr4e5_es12] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.369
+Val Loss: 0.073, Val F1: 0.8736
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.047
+Val Loss: 0.043, Val F1: 0.9248
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.016
+Val Loss: 0.045, Val F1: 0.9299
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.047, Val F1: 0.9344
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.057, Val F1: 0.9389
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.058, Val F1: 0.9438
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.057, Val F1: 0.9417
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.060, Val F1: 0.9461
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.063, Val F1: 0.9479
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.064, Val F1: 0.9485
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.065, Val F1: 0.9478
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.066, Val F1: 0.9478
+[Config B_bs32_lr4e5_es12] Seed 42 best dev F1 0.9485 at epoch 10; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_bs32_lr4e5_es12] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/12
+------------------------------
+Train Loss: 0.394
+Val Loss: 0.072, Val F1: 0.8781
+
+Epoch 2/12
+------------------------------
+Train Loss: 0.048
+Val Loss: 0.045, Val F1: 0.9252
+
+Epoch 3/12
+------------------------------
+Train Loss: 0.017
+Val Loss: 0.048, Val F1: 0.9276
+
+Epoch 4/12
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.050, Val F1: 0.9406
+
+Epoch 5/12
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.055, Val F1: 0.9341
+
+Epoch 6/12
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.060, Val F1: 0.9408
+
+Epoch 7/12
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.057, Val F1: 0.9406
+
+Epoch 8/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.062, Val F1: 0.9431
+
+Epoch 9/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.062, Val F1: 0.9433
+
+Epoch 10/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.064, Val F1: 0.9451
+
+Epoch 11/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.065, Val F1: 0.9442
+
+Epoch 12/12
+------------------------------
+Train Loss: 0.000
+Val Loss: 0.065, Val F1: 0.9443
+[Config B_bs32_lr4e5_es12] Seed 63 best dev F1 0.9451 at epoch 10; restored best checkpoint for test evaluation.
+
+=== Config B_bs32_lr4e5_es12 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9131 ± 0.0050  0.9191 ± 0.0029  0.9160 ± 0.0037
+MISC              702  0.7435 ± 0.0173  0.8191 ± 0.0099  0.7792 ± 0.0051
+ORG              1661  0.8432 ± 0.0110  0.8786 ± 0.0139  0.8604 ± 0.0099
+PER              1617  0.9625 ± 0.0034  0.9516 ± 0.0056  0.9570 ± 0.0045
+micro avg        5648  0.8830 ± 0.0057  0.9040 ± 0.0051  0.8934 ± 0.0054
+macro avg        5648  0.8655 ± 0.0059  0.8921 ± 0.0041  0.8782 ± 0.0048
+weighted avg     5648  0.8856 ± 0.0055  0.9040 ± 0.0051  0.8944 ± 0.0053
+Saved to ner_mbert_sent_best_B_bs32_lr4e5_es12.csv
+
+======================================================================
+RUN SUMMARY
+======================================================================
+           config      lr head_lr  epochs  early_stopping_patience  warmup_ratio  weight_decay  batch_size  max_seq_length  gradient_clip                                        artifacts   test_micro_f1     best_dev_f1 best_epoch_mean
+     B_lr3e5_es12 0.00003              12                        3           0.1          0.01          16             512              1      ner_mbert_sent_best_B_lr3e5_es12.{csv,json} 0.8923 ± 0.0029 0.9432 ± 0.0029            7.00
+   B_disc4e5_es12 0.00004  0.0001      12                        3           0.1          0.01          16             512              1    ner_mbert_sent_best_B_disc4e5_es12.{csv,json} 0.8984 ± 0.0034 0.9480 ± 0.0017           10.33
+B_bs32_lr4e5_es12 0.00004              12                        3           0.1          0.01          32             512              1 ner_mbert_sent_best_B_bs32_lr4e5_es12.{csv,json} 0.8934 ± 0.0054 0.9460 ± 0.0018           10.00

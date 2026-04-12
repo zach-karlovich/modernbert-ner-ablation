@@ -1,0 +1,26 @@
+{
+  "config_name": "B",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "b7dfa377fb97d0e067325200afc554fa562c127f",
+  "hyperparameters": {
+    "name": "B",
+    "lr": 5e-05,
+    "epochs": 5,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 16,
+    "max_seq_length": 512,
+    "gradient_clip": 1,
+    "context": "sentence"
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 512,
+  "script": "train_modernbert_ner.py",
+  "run_description": "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. Config B in HP_CONFIGS. Writes ner_mbert_sent_best.{csv,json}."
+}
