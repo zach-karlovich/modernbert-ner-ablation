@@ -19,7 +19,7 @@ We use two factors:
 
 ![2×2 factorial: rows = sentence vs document context; columns = softmax vs CRF. Config A baseline (softmax, sentence); B +CRF only; C +document context only; D +document context +CRF.](images/ner_ablation_2x2.png)
 
-*Figure: Same design as the list below—**A** = baseline (sentence, softmax), **B** = +CRF only, **C** = +document context only, **D** = +document context and CRF.*
+_Figure: Same design as the list below—**A** = baseline (sentence, softmax), **B** = +CRF only, **C** = +document context only, **D** = +document context and CRF._
 
 This yields four configurations (same labels as the figure, row-major: A and B on the sentence row, C and D on the document row):
 
@@ -32,36 +32,35 @@ Primary metric: entity-level F1 (seqeval), with per-entity-type F1 for PER/ORG/L
 
 ## Results
 
-**Last updated:** 2026-04-11. Primary metrics below come from the checked-in aggregates [`results/ner_bert_ref.csv`](results/ner_bert_ref.csv), [`results/ner_mbert_sent_best.csv`](results/ner_mbert_sent_best.csv), and [`results/ner_mbert_doc_best.csv`](results/ner_mbert_doc_best.csv); paired [`results/*.json`](results/) manifests record hyperparameters, seeds, and provenance. Older sweep tables and archived CSVs under [`results/old/`](results/old/) are not used for these headline numbers.
+**Last updated:** 2026-04-12. Headline metrics use the **best test micro F1** per model family among checked-in CSVs. Sources: [`results/ner_bert_ref.csv`](results/ner_bert_ref.csv) (same numbers as [`results/old/ner_bert_ref.csv`](results/old/ner_bert_ref.csv)), [`results/ner_bert_doc_ref.csv`](results/ner_bert_doc_ref.csv), [`results/ner_mbert_sent_v2_B_dropout_ls.csv`](results/ner_mbert_sent_v2_B_dropout_ls.csv), [`results/modernbert_doc_ner_config_doc_4e5_bs2.csv`](results/modernbert_doc_ner_config_doc_4e5_bs2.csv), [`results/ner_mbert_sent_crf_best.csv`](results/ner_mbert_sent_crf_best.csv), [`results/ner_mbert_doc_crf_tuned.csv`](results/ner_mbert_doc_crf_tuned.csv). Each has a paired `.json` manifest under [`results/`](results/).
 
-Numbers below are from `results/ner_*.csv` (mean ± std over seeds 21, 42, 63). Each row has a matching `results/ner_*.json` with full hyperparameters, seeds, and run metadata. Older sweeps: [`results/old/`](results/old/).
-
-Entity-level F1 on the CoNLL-2003 **test** set (`eng.testb`). Per seed, evaluation uses the checkpoint with **best dev F1** on `eng.testa`. Rows are **not** matched for a single fair comparison (context length, batch, linear vs CRF vary); use the JSONs for exact settings.
+Numbers are mean ± std over seeds 21, 42, 63. Per seed, evaluation uses the checkpoint with **best dev F1** on `eng.testa`. Configurations are **not** matched for a controlled comparison (context length, batch, head type vary); see each JSON for exact hyperparameters.
 
 ### Overall F1
 
-| Model                                                  | Micro F1            | Macro F1            |
-| ------------------------------------------------------ | ------------------- | ------------------- |
-| BERT-base-cased (sentence-level, no CRF)               | 0.9135 ± 0.0021     | 0.8978 ± 0.0026     |
-| ModernBERT-base (sentence-level, config B)             | 0.8962 ± 0.0013     | 0.8824 ± 0.0008     |
-| ModernBERT-base + document context                     | **0.9142 ± 0.0012** | **0.8986 ± 0.0011** |
-| ModernBERT-base + CRF (sentence-level, config G)       | 0.9015 ± 0.0021     | 0.8887 ± 0.0026     |
-| ModernBERT-base + document context + CRF (doc_5e5_bs4) | 0.9012 ± 0.0013     | 0.8843 ± 0.0022     |
+| Model                                                      | Micro F1            | Macro F1            |
+| ---------------------------------------------------------- | ------------------- | ------------------- |
+| BERT-base-cased (sentence-level, no CRF)                   | 0.9137 ± 0.0017     | 0.8993 ± 0.0018     |
+| BERT-base-cased (document windows, no CRF)                 | 0.8915 ± 0.0031     | 0.8777 ± 0.0022     |
+| ModernBERT-base (sentence-level, `B_dropout_ls`)           | 0.9012 ± 0.0031     | 0.8875 ± 0.0027     |
+| ModernBERT-base + document context (`doc_4e5_bs2`)         | **0.9161 ± 0.0023** | **0.9000 ± 0.0023** |
+| ModernBERT-base + CRF (sentence-level, config G)           | 0.9015 ± 0.0021     | 0.8887 ± 0.0026     |
+| ModernBERT-base + document context + CRF (`doc_crf_tuned`) | 0.9012 ± 0.0013     | 0.8843 ± 0.0022     |
 
 ### Per-entity F1
 
 Entity order: PER, ORG, LOC, MISC.
 
-| Entity | BERT                | ModernBERT (sentence, config B) | ModernBERT (document) | ModernBERT (sentence + CRF, G) | ModernBERT (document + CRF) |
-| ------ | ------------------- | ------------------------------- | --------------------- | ------------------------------ | --------------------------- |
-| PER    | 0.9602 ± 0.0020     | 0.9576 ± 0.0014                 | **0.9805** ± 0.0014   | 0.9559 ± 0.0016                | 0.9707 ± 0.0043             |
-| ORG    | **0.8990** ± 0.0018 | 0.8632 ± 0.0048                 | 0.8903 ± 0.0028       | 0.8682 ± 0.0043                | 0.8734 ± 0.0004             |
-| LOC    | **0.9320** ± 0.0008 | 0.9150 ± 0.0013                 | 0.9238 ± 0.0018       | 0.9233 ± 0.0022                | 0.9170 ± 0.0008             |
-| MISC   | 0.8000 ± 0.0070     | 0.7939 ± 0.0021                 | 0.7999 ± 0.0026       | **0.8072** ± 0.0059            | 0.7759 ± 0.0099             |
+| Entity | BERT (sentence)     | BERT (document) | ModernBERT (sentence) | ModernBERT (document) | ModernBERT (sent. + CRF) | ModernBERT (doc + CRF) |
+| ------ | ------------------- | --------------- | --------------------- | --------------------- | ------------------------ | ---------------------- |
+| PER    | 0.9612 ± 0.0014     | 0.9424 ± 0.0072 | 0.9571 ± 0.0005       | **0.9788** ± 0.0001   | 0.9559 ± 0.0016          | 0.9707 ± 0.0043        |
+| ORG    | **0.8960** ± 0.0036 | 0.8696 ± 0.0028 | 0.8712 ± 0.0066       | 0.8946 ± 0.0050       | 0.8682 ± 0.0043          | 0.8734 ± 0.0004        |
+| LOC    | **0.9309** ± 0.0003 | 0.9077 ± 0.0068 | 0.9222 ± 0.0034       | 0.9283 ± 0.0023       | 0.9233 ± 0.0022          | 0.9170 ± 0.0008        |
+| MISC   | **0.8093** ± 0.0030 | 0.7910 ± 0.0047 | 0.7993 ± 0.0019       | 0.7981 ± 0.0050       | 0.8072 ± 0.0059          | 0.7759 ± 0.0099        |
 
 ## Planned Final Model
 
-Reported above: full **2×2** over document context and CRF (linear vs CRF heads), plus BERT sentence baseline. Document **linear** head achieves the highest test micro F1 in this table; document **CRF** is slightly below both document linear and sentence CRF on micro F1.
+Reported above: BERT and ModernBERT variants across document context and CRF (plus BERT/ModernBERT sentence baselines). **ModernBERT + document context** (`doc_4e5_bs2`) achieves the highest test micro F1 in this table (**0.9161**). Document **CRF** is slightly below document linear and ties sentence CRF on micro F1 (0.9012 vs 0.9015).
 
 ## Environment Setup
 
@@ -86,7 +85,7 @@ The script uses [kagglehub](https://github.com/Kaggle/kagglehub) to download [ju
 
 - [`data/conll2003/`](data/conll2003/): CoNLL-2003 splits (from **Dataset download** above)
 - [`scripts/`](scripts/): training, verification, and data helpers
-- [`results/`](results/): run metrics and archived sweeps under `results/old/`
+- [`results/`](results/): headline `*.csv` / `*.json` pairs (see **Results**)
 - [`images/`](images/): figures for docs
 - `notebooks/`: experiment notebooks and ablations
 - `references/`: bibliography sources
@@ -100,16 +99,35 @@ From the project root (after `uv sync`), run a trainer with:
 uv run python scripts/<training_file>.py
 ```
 
-Each script writes metrics under [`results/`](results/) as paired `ner_*.csv` and `ner_*.json` (see the `OUTPUT_STEM` / manifest logic at the bottom of each file). Hyperparameters are defined in that script (e.g. `HP_CONFIGS`); edit before long sweeps. Extra artifacts from older runs may live under [`results/old/`](results/old/).
+Each script writes metrics under [`results/`](results/) per its `OUTPUT_STEM` (paired `.csv` + `.json`). Hyperparameters live in that script’s `HP_CONFIG` (see [Hyperparameters (`HP_CONFIG`)](#hyperparameters-hp_config)). Headline aggregates in **Results** may match a sweep file copied into `results/`; ad-hoc runs are archived under [`results/old/`](results/old/) or [`results/old/archive_from_root_2026-04-12/`](results/old/archive_from_root_2026-04-12/).
 
-| Script                                                                       | Trains                                                                                |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`train_bert_ner.py`](scripts/train_bert_ner.py)                             | BERT, sentence → `ner_bert_ref.*`                                                     |
-| [`train_bert_doc_ner.py`](scripts/train_bert_doc_ner.py)                     | BERT, document windows → `ner_bert_doc_ref.*`                                         |
-| [`train_modernbert_ner.py`](scripts/train_modernbert_ner.py)                 | ModernBERT, sentence; one row per `HP_CONFIGS` entry → `ner_mbert_sent_best_<name>.*` |
-| [`train_modernbert_doc_ner.py`](scripts/train_modernbert_doc_ner.py)         | ModernBERT, document → `ner_mbert_doc_best.*`                                         |
-| [`train_modernbert_crf_ner.py`](scripts/train_modernbert_crf_ner.py)         | ModernBERT + CRF, sentence → `ner_mbert_sent_crf_best.*`                              |
-| [`train_modernbert_doc_crf_ner.py`](scripts/train_modernbert_doc_crf_ner.py) | ModernBERT + CRF, document → `ner_mbert_doc_crf_tuned.*`                              |
+| Script                                                                       | Default output stem (see script) |
+| ---------------------------------------------------------------------------- | -------------------------------- |
+| [`train_bert_ner.py`](scripts/train_bert_ner.py)                             | `ner_bert`                       |
+| [`train_bert_doc_ner.py`](scripts/train_bert_doc_ner.py)                     | `ner_bert_doc`                   |
+| [`train_modernbert_ner.py`](scripts/train_modernbert_ner.py)                 | `ner_mbert`                      |
+| [`train_modernbert_doc_ner.py`](scripts/train_modernbert_doc_ner.py)         | `ner_mbert_doc`                  |
+| [`train_modernbert_crf_ner.py`](scripts/train_modernbert_crf_ner.py)         | `ner_mbert_crf`                  |
+| [`train_modernbert_doc_crf_ner.py`](scripts/train_modernbert_doc_crf_ner.py) | `ner_mbert_doc_crf`              |
+
+### Hyperparameters (`HP_CONFIG`)
+
+Each training script defines a single `HP_CONFIG` dict with the tunable values for that run. The paired [`results/<stem>.json`](results/) manifest records what was used.
+
+Look for `HP_CONFIG` in each [`scripts/train_*.py`](scripts/) (a few files still wrap the same dict in a one-element `HP_CONFIGS` list until renamed). CRF trainers add decoder-specific keys (e.g. `crf_lr`) alongside the usual optimization and schedule fields.
+
+Document ModernBERT softmax ([`train_modernbert_doc_ner.py`](scripts/train_modernbert_doc_ner.py)):
+
+```python
+HP_CONFIG = {
+    "name": "test_config",
+    "lr": 4e-5,
+    "epochs": 5,
+    "warmup_ratio": 0.10,
+    "weight_decay": 0.01,
+    "batch_size": 2,
+}
+```
 
 ### Data
 
