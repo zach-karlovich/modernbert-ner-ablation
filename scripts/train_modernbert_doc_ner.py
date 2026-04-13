@@ -2,8 +2,7 @@
 
 Run identity: `-DOCSTART-` respected; sliding windows; softmax head; seqeval. Doc side of
 the 2×2 ablation vs sentence-level + CRF variants. Single HP config **doc_4e5_bs2**
-(lr 4e-5) — best test micro F1 in the doc-context linear sweep. Outputs
-`ner_mbert_doc_best.{csv,json}`. For lr 5e-5 use a one-off rename or restore sweep list."""
+(lr 4e-5). Outputs `ner_mbert_doc_4e5_bs2.{csv,json}`."""
 
 import copy
 import json
@@ -38,12 +37,13 @@ from sliding_window_conll import (
 MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 8
-OUTPUT_STEM = "ner_mbert_doc_v2"
+OUTPUT_STEM = "ner_mbert_doc_4e5_bs2"
 
 RUN_DESCRIPTION = (
     "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window "
-    "packing. Config doc_4e5_bs2_v2: classifier_dropout 0.1, wd 0.05, 10 epochs + "
-    "early stopping (patience 3). Writes ner_mbert_doc_v2.{csv,json}."
+    "packing. Config doc_4e5_bs2: lr 4e-5, wd 0.01, 5 epochs, batch 2, grad_accum 8, "
+    "warmup 0.1; default classifier dropout; no early stopping. "
+    "Writes ner_mbert_doc_4e5_bs2.{csv,json}."
 )
 
 
@@ -603,14 +603,12 @@ if __name__ == "__main__":
 
     HP_CONFIGS = [
         {
-            "name": "doc_4e5_bs2_v2",
+            "name": "doc_4e5_bs2",
             "lr": 4e-5,
-            "epochs": 10,
-            "early_stopping_patience": 3,
+            "epochs": 5,
             "warmup_ratio": 0.10,
-            "weight_decay": 0.05,
+            "weight_decay": 0.01,
             "batch_size": 2,
-            "classifier_dropout": 0.1,
         },
     ]
 
