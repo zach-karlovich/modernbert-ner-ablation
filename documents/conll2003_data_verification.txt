@@ -1,12 +1,17 @@
-CoNLL-2003 verification (data/conll2003/):
-  eng.train: 14987 sentences (expected 14987) PASS
-  eng.testa: 3466 sentences (expected 3466) PASS
-  eng.testb: 3684 sentences (expected 3684) PASS
+Archived sample output from: uv run python scripts/conll2003_dataset_verification.py
 
-Entity distribution:
-  train: PER=11128 ORG=10025 LOC=8297 MISC=4593
-  validation: PER=3149 ORG=2092 LOC=2094 MISC=1268
-  test: PER=2773 ORG=2496 LOC=1925 MISC=918
+Parsed sentence counts (NER training units) differ from raw blank-line counts:
+each -DOCSTART- is followed by one blank line that does not end a word sentence.
+
+CoNLL-2003 verification (data/conll2003/):
+  eng.train: 14041 parsed sentences (expected 14041) PASS; blank lines in file 14987 (expected 14987)
+  eng.testa: 3250 parsed sentences (expected 3250) PASS; blank lines in file 3466 (expected 3466)
+  eng.testb: 3453 parsed sentences (expected 3453) PASS; blank lines in file 3684 (expected 3684)
+
+Entity spans (B- tags):
+  train: PER=6600 ORG=6321 LOC=7140 MISC=3438
+  validation: PER=1842 ORG=1341 LOC=1837 MISC=922
+  test: PER=1617 ORG=1661 LOC=1668 MISC=702
 
 DOCSTART:
   eng.train: 946 (expected 946)

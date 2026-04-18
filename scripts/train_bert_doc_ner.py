@@ -5,7 +5,7 @@ at 512 subwords so cross-sentence context is less than ModernBERT at 8192.
 
 Run identity: `-DOCSTART-` respected; per-sentence labels with neighbor context;
 softmax head; seqeval. Pairs with train_bert_ner.py (sentence-only reference).
-Outputs `ner_bert_doc_ref.{csv,json}`. HPs in `HP_CONFIGS` below."""
+Outputs `ner_bert_doc.{csv,json}`. HPs in `HP_CONFIG` below."""
 
 import copy
 import json
@@ -27,6 +27,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from conll2003_expectations import assert_conll2003_dataset
 from sliding_window_conll import (
     DEFAULT_TOKEN_OVERLAP,
     build_windows_word_ranges,
@@ -39,12 +40,13 @@ from sliding_window_conll import (
 MODEL_ID = "bert-base-cased"
 MAX_SEQ_LENGTH = 512
 GRAD_ACCUM_STEPS = 2
-OUTPUT_STEM = "ner_bert_doc_ref"
+OUTPUT_STEM = "ner_bert_doc"
 
 RUN_DESCRIPTION = (
     "Document-context bert-base-cased on CoNLL-2003; windows up to 512 subwords; "
     "same sliding-window machinery as ModernBERT doc trainer but BERT length cap. "
-    "Optimizer HPs aligned with train_bert_ner.py. Writes ner_bert_doc_ref.{csv,json}."
+    "Config bert_doc_aligned: lr 5e-5, wd 1e-5, 5 epochs, batch size 16. "
+    "Writes ner_bert_doc.{csv,json}."
 )
 
 
@@ -545,6 +547,8 @@ if __name__ == "__main__":
     )
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
 
@@ -598,27 +602,26 @@ if __name__ == "__main__":
     # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
 
-    HP_CONFIGS = [
-        {
-            "name": "bert_doc_aligned",
-            "lr": 5e-5,
-            "epochs": 5,
-            "warmup_ratio": 0.10,
-            "weight_decay": 1e-5,
-            "batch_size": 16,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "bert_doc_aligned",
+        "lr": 5e-5,
+        "epochs": 5,
+        "warmup_ratio": 0.10,
+        "weight_decay": 1e-5,
+        "batch_size": 16,
+    }
 
     summary_rows = []
     prev_batch_size = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         n_epochs = cfg["epochs"]
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        early_stopping_patience = cfg.get("early_stopping_patience")
 
         print(f"\n{'#' * 60}")
         manifest_hp = {
@@ -628,8 +631,13 @@ if __name__ == "__main__":
             "max_seq_length": MAX_SEQ_LENGTH,
             "grad_accum_steps": GRAD_ACCUM_STEPS,
         }
+        es_note = (
+            f", early_stopping_patience={early_stopping_patience}"
+            if early_stopping_patience is not None
+            else ""
+        )
         print(
-            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}, "
+            f"CONFIG {cfg_name}: lr={lr}, epochs={n_epochs}{es_note}, "
             f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
             f"max_seq_length={MAX_SEQ_LENGTH}, clip={CLIP}, "
             f"grad_accum={GRAD_ACCUM_STEPS}"
@@ -726,6 +734,7 @@ if __name__ == "__main__":
             best_val_f1 = 0.0
             best_epoch = -1
             best_state_dict = None
+            epochs_no_improve = 0
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -740,6 +749,18 @@ if __name__ == "__main__":
                     best_val_f1 = val_f1
                     best_epoch = epoch + 1
                     best_state_dict = copy.deepcopy(model.state_dict())
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+                    if (
+                        early_stopping_patience is not None
+                        and epochs_no_improve >= early_stopping_patience
+                    ):
+                        print(
+                            f"Early stopping: no dev F1 improvement for "
+                            f"{early_stopping_patience} epoch(s)."
+                        )
+                        break
 
             best_val_f1s.append(best_val_f1)
             best_epochs.append(best_epoch)

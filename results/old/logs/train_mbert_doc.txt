@@ -1,0 +1,120 @@
+Using device: cuda
+Model: answerdotai/ModernBERT-base, max_seq_length=8192, grad_accum_steps=8
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+Train dataset: base_sentences=14041 rows=14041 multi_window_overflow_sources=0 window_mode=train overlap=128
+Dev dataset: base_sentences=3250 rows=3250 multi_window_overflow_sources=0 window_mode=eval overlap=128
+Test dataset: base_sentences=3453 rows=3453 multi_window_overflow_sources=0 window_mode=eval overlap=128
+
+############################################################
+CONFIG doc_4e5_bs2: lr=4e-05, epochs=5, warmup=0.1, wd=0.01, bs=2, max_seq_length=8192, clip=1, grad_accum=8
+############################################################
+
+==================================================
+[Config doc_4e5_bs2] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.274
+Val Loss: 0.047, Val F1: 0.9441
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.028
+Val Loss: 0.034, Val F1: 0.9521
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.039, Val F1: 0.9555
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.045, Val F1: 0.9562
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.044, Val F1: 0.9594
+[Config doc_4e5_bs2] Seed 21 best dev F1 0.9594 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_4e5_bs2] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.208
+Val Loss: 0.044, Val F1: 0.9428
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.030
+Val Loss: 0.037, Val F1: 0.9530
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.038, Val F1: 0.9488
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.040, Val F1: 0.9572
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.044, Val F1: 0.9610
+[Config doc_4e5_bs2] Seed 42 best dev F1 0.9610 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_4e5_bs2] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.235
+Val Loss: 0.052, Val F1: 0.9302
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.031
+Val Loss: 0.035, Val F1: 0.9551
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.014
+Val Loss: 0.039, Val F1: 0.9558
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.043, Val F1: 0.9545
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.044, Val F1: 0.9611
+[Config doc_4e5_bs2] Seed 63 best dev F1 0.9611 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config doc_4e5_bs2 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9278 ± 0.0007  0.9199 ± 0.0031  0.9238 ± 0.0018
+MISC              702  0.7816 ± 0.0024  0.8191 ± 0.0031  0.7999 ± 0.0026
+ORG              1661  0.8602 ± 0.0039  0.9225 ± 0.0015  0.8903 ± 0.0028
+PER              1617  0.9783 ± 0.0033  0.9827 ± 0.0005  0.9805 ± 0.0014
+micro avg        5648  0.9026 ± 0.0010  0.9261 ± 0.0016  0.9142 ± 0.0012
+macro avg        5648  0.8870 ± 0.0006  0.9110 ± 0.0016  0.8986 ± 0.0011
+weighted avg     5648  0.9042 ± 0.0009  0.9261 ± 0.0016  0.9148 ± 0.0012
+Saved to ner_mbert_doc_best.csv
+
+======================================================================
+RUN SUMMARY
+======================================================================
+     config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  grad_accum_steps  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+doc_4e5_bs2 0.00004       5           0.1          0.01           2            8192                 8              1 0.9142 ± 0.0012 0.9605 ± 0.0008            5.00

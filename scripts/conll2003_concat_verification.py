@@ -4,31 +4,12 @@ Verify sentence-level vs document-level CoNLL-2003 parsing agree.
 
 from pathlib import Path
 
+from conll2003_parse import parse_conll
+
 _here = Path.cwd()
 root = _here if (_here / "pyproject.toml").exists() else _here.parent
 out = root / "data" / "conll2003"
 required = ["eng.train", "eng.testa", "eng.testb"]
-
-
-def parse_conll(filepath):
-    """Sentence-level: skip -DOCSTART-, split on blank lines."""
-    sentences = []
-    current = []
-    with open(filepath, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                current.append((parts[0], parts[-1]))
-        if current:
-            sentences.append(current)
-    return sentences
 
 
 def parse_conll_documents(filepath):

@@ -1,9 +1,9 @@
 """Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py.
 
 Run identity: sentence-level (`parse_conll` skips `-DOCSTART-`); softmax head; seqeval.
-Sentence side of the factorial vs doc-context + CRF runs. `HP_CONFIGS` lists
-optimized sentence-level runs (LR / discriminative head / batch size + early stopping).
-Outputs per config: `ner_mbert_sent_best_<name>.{csv,json}`."""
+Sentence side of the factorial vs doc-context + CRF runs. `HP_CONFIG` stores the
+selected sentence-level run (LR / regularization / early stopping).
+Outputs `ner_mbert.{csv,json}`."""
 
 import copy
 import json
@@ -31,11 +31,12 @@ from conll2003_expectations import (
 )
 from conll2003_parse import parse_conll
 
-OUTPUT_STEM = "ner_mbert_sent_best"
+OUTPUT_STEM = "ner_mbert"
 
 RUN_DESCRIPTION = (
     "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. "
-    "Writes ner_mbert_sent_best_<config_name>.{csv,json} per HP_CONFIGS entry."
+    "Config B_dropout_ls: classifier_dropout 0.2, label_smoothing 0.1, wd 0.05, "
+    "8 epochs + early stopping. Writes ner_mbert.{csv,json}."
 )
 
 
@@ -136,20 +137,34 @@ def make_collate_fn(pad_token_id):
     return collate_fn
 
 
-def train_epoch(model, dataloader, optimizer, scheduler, device, clip):
-    """Modeled after assignment 2 runner.train_epoch. BERT returns loss directly."""
+def train_epoch(model, dataloader, optimizer, scheduler, device, clip,
+                label_smoothing=0.0):
     model.train()
     running_loss = 0.0
+    loss_fn = (
+        torch.nn.CrossEntropyLoss(ignore_index=-100, label_smoothing=label_smoothing)
+        if label_smoothing > 0
+        else None
+    )
     for batch in tqdm(dataloader, desc="Training"):
         input_ids, attention_mask, labels = batch
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         labels = labels.to(device)
         optimizer.zero_grad()
-        outputs = model(
-            input_ids=input_ids, attention_mask=attention_mask, labels=labels
-        )
-        loss = outputs.loss
+        if loss_fn is not None:
+            outputs = model(
+                input_ids=input_ids, attention_mask=attention_mask
+            )
+            loss = loss_fn(
+                outputs.logits.view(-1, outputs.logits.size(-1)),
+                labels.view(-1),
+            )
+        else:
+            outputs = model(
+                input_ids=input_ids, attention_mask=attention_mask, labels=labels
+            )
+            loss = outputs.loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
@@ -369,45 +384,24 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    HP_CONFIGS = [
-        {
-            "name": "B_lr3e5_es12",
-            "lr": 3e-5,
-            "epochs": 12,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-            "max_seq_length": 512,
-        },
-        {
-            "name": "B_disc4e5_es12",
-            "lr": 4e-5,
-            "head_lr": 1e-4,
-            "epochs": 12,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-            "max_seq_length": 512,
-        },
-        {
-            "name": "B_bs32_lr4e5_es12",
-            "lr": 4e-5,
-            "epochs": 12,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 32,
-            "max_seq_length": 512,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "B_dropout_ls",
+        "lr": 5e-5,
+        "epochs": 8,
+        "early_stopping_patience": 3,
+        "warmup_ratio": 0.10,
+        "weight_decay": 0.05,
+        "batch_size": 16,
+        "max_seq_length": 512,
+        "classifier_dropout": 0.2,
+        "label_smoothing": 0.1,
+    }
 
     summary_rows = []
     prev_batch_size = None
     prev_max_seq: int | None = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         n_epochs = cfg["epochs"]
@@ -417,6 +411,8 @@ if __name__ == "__main__":
         max_seq_length = cfg["max_seq_length"]
         head_lr = cfg.get("head_lr")
         early_stopping_patience = cfg.get("early_stopping_patience")
+        classifier_dropout = cfg.get("classifier_dropout")
+        label_smoothing = cfg.get("label_smoothing", 0.0)
 
         if max_seq_length != prev_max_seq:
             train_dataset = ConllDataset(
@@ -449,7 +445,7 @@ if __name__ == "__main__":
             prev_batch_size = batch_size
 
         manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
-        artifact_stem = f"{OUTPUT_STEM}_{cfg_name}"
+        artifact_stem = OUTPUT_STEM
 
         print(f"\n{'#' * 60}")
         es_note = (
@@ -458,10 +454,20 @@ if __name__ == "__main__":
             else ""
         )
         hl_note = f", head_lr={head_lr}" if head_lr is not None else ""
+        cd_note = (
+            f", classifier_dropout={classifier_dropout}"
+            if classifier_dropout is not None
+            else ""
+        )
+        ls_note = (
+            f", label_smoothing={label_smoothing}"
+            if label_smoothing
+            else ""
+        )
         print(
             f"CONFIG {cfg_name}: lr={lr}{hl_note}, max_epochs={n_epochs}{es_note}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}, "
-            f"max_seq_length={max_seq_length}, clip={CLIP}"
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}{cd_note}"
+            f"{ls_note}, max_seq_length={max_seq_length}, clip={CLIP}"
         )
         print(f"{'#' * 60}")
 
@@ -486,11 +492,15 @@ if __name__ == "__main__":
             print("=" * 50)
             set_seeds_to(seed)
 
+            model_kwargs: dict[str, object] = {}
+            if classifier_dropout is not None:
+                model_kwargs["classifier_dropout"] = classifier_dropout
             model = AutoModelForTokenClassification.from_pretrained(
                 "answerdotai/ModernBERT-base",
                 num_labels=len(label_list),
                 id2label=id2label,
                 label2id=label2id,
+                **model_kwargs,
             ).to(device)
 
             total_steps = len(train_loader) * n_epochs
@@ -512,7 +522,8 @@ if __name__ == "__main__":
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
                 train_loss = train_epoch(
-                    model, train_loader, optimizer, scheduler, device, CLIP
+                    model, train_loader, optimizer, scheduler, device, CLIP,
+                    label_smoothing=label_smoothing,
                 )
                 val_loss, val_f1 = evaluate(model, dev_loader, device, id2label)
                 print(f"Train Loss: {train_loss:.3f}")

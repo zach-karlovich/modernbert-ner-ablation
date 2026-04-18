@@ -1,7 +1,7 @@
 """Fine-tune ModernBERT-base + linear-chain CRF on CoNLL-2003 NER (sentence-level).
 
 Run identity: sentence-level; CRF decoder; dense BIO labels; seqeval. Sent.+CRF cell of
-the factorial. Output stem `ner_mbert_sent_crf_best.{csv,json}`; HPs in `HP_CONFIGS`."""
+the factorial. Output stem `ner_mbert_crf.{csv,json}`; HPs in `HP_CONFIG`."""
 
 import copy
 import json
@@ -19,6 +19,11 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
+from conll2003_expectations import (
+    assert_conll2003_dataset,
+    assert_parsed_sentence_counts_match_expected,
+)
+from conll2003_parse import parse_conll
 from conll2003_labels import id2label, label2id
 from dense_bio_labels import (
     assign_dense_bio_labels,
@@ -29,34 +34,13 @@ from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 WORD_PAD_ID = -99
-OUTPUT_STEM = "ner_mbert_sent_crf_best"
+OUTPUT_STEM = "ner_mbert_crf"
 
 RUN_DESCRIPTION = (
-    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G in HP_CONFIGS. "
-    "Writes ner_mbert_sent_crf_best.{csv,json}."
+    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. "
+    "Config G: lr 6e-5, crf_lr 3e-4, wd 0.01, 10 epochs, batch size 32. "
+    "Writes ner_mbert_crf.{csv,json}."
 )
-
-
-def parse_conll(filepath):
-    sentences = []
-    current = []
-    with open(filepath) as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("-DOCSTART-"):
-                continue
-            if line == "":
-                if current:
-                    sentences.append(current)
-                    current = []
-            else:
-                parts = line.split()
-                word = parts[0]
-                ner = parts[-1]
-                current.append((word, ner))
-        if current:
-            sentences.append(current)
-    return sentences
 
 
 def set_seeds_to(seed: int) -> None:
@@ -278,12 +262,17 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     data_dir = Path(__file__).resolve().parent.parent / "data" / "conll2003"
+    assert_conll2003_dataset(data_dir)
+    print(f"CoNLL-2003 dataset checksums OK: {data_dir}")
     results_dir = Path(__file__).resolve().parent.parent / "results"
     results_dir.mkdir(exist_ok=True)
 
     train_sentences = parse_conll(data_dir / "eng.train")
     dev_sentences = parse_conll(data_dir / "eng.testa")
     test_sentences = parse_conll(data_dir / "eng.testb")
+    assert_parsed_sentence_counts_match_expected(
+        len(train_sentences), len(dev_sentences), len(test_sentences)
+    )
     print(f"Train: {len(train_sentences)} sentences")
     print(f"Dev: {len(dev_sentences)} sentences")
     print(f"Test: {len(test_sentences)} sentences")
@@ -296,22 +285,20 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn_crf(tokenizer.pad_token_id, label_pad_id=label2id["O"])
 
-    HP_CONFIGS = [
-        {
-            "name": "G",
-            "lr": 6e-5,
-            "crf_lr": 3e-4,
-            "epochs": 10,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 32,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "G",
+        "lr": 6e-5,
+        "crf_lr": 3e-4,
+        "epochs": 10,
+        "warmup_ratio": 0.10,
+        "weight_decay": 0.01,
+        "batch_size": 32,
+    }
 
     summary_rows = []
     prev_batch_size = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         crf_lr = cfg["crf_lr"]
@@ -319,6 +306,8 @@ if __name__ == "__main__":
         warmup_ratio = cfg["warmup_ratio"]
         weight_decay = cfg["weight_decay"]
         batch_size = cfg["batch_size"]
+        early_stopping_patience = cfg.get("early_stopping_patience")
+        classifier_dropout = cfg.get("classifier_dropout")
 
         save_run_config(
             results_dir / f"{OUTPUT_STEM}.json",
@@ -352,9 +341,19 @@ if __name__ == "__main__":
             prev_batch_size = batch_size
 
         print(f"\n{'#' * 60}")
+        es_note = (
+            f", early_stopping_patience={early_stopping_patience}"
+            if early_stopping_patience is not None
+            else ""
+        )
+        cd_note = (
+            f", classifier_dropout={classifier_dropout}"
+            if classifier_dropout is not None
+            else ""
+        )
         print(
-            f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}, "
-            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}"
+            f"CONFIG {cfg_name}: lr={lr}, crf_lr={crf_lr}, epochs={n_epochs}{es_note}, "
+            f"warmup={warmup_ratio}, wd={weight_decay}, bs={batch_size}{cd_note}"
         )
         print(f"{'#' * 60}")
 
@@ -368,7 +367,12 @@ if __name__ == "__main__":
             print("=" * 50)
             set_seeds_to(seed)
 
-            model = ModernBertTokenCRF(MODEL_ID, trust_remote_code=True).to(device)
+            crf_kwargs: dict[str, object] = {}
+            if classifier_dropout is not None:
+                crf_kwargs["classifier_dropout"] = classifier_dropout
+            model = ModernBertTokenCRF(
+                MODEL_ID, trust_remote_code=True, **crf_kwargs
+            ).to(device)
 
             total_steps = len(train_loader) * n_epochs
             warmup_steps = int(warmup_ratio * total_steps)
@@ -384,6 +388,7 @@ if __name__ == "__main__":
             best_val_f1 = 0.0
             best_epoch = -1
             best_state_dict = None
+            epochs_no_improve = 0
             for epoch in range(n_epochs):
                 print(f"\nEpoch {epoch + 1}/{n_epochs}")
                 print("-" * 30)
@@ -397,6 +402,18 @@ if __name__ == "__main__":
                     best_val_f1 = val_f1
                     best_epoch = epoch + 1
                     best_state_dict = copy.deepcopy(model.state_dict())
+                    epochs_no_improve = 0
+                else:
+                    epochs_no_improve += 1
+                    if (
+                        early_stopping_patience is not None
+                        and epochs_no_improve >= early_stopping_patience
+                    ):
+                        print(
+                            f"Early stopping: no dev F1 improvement for "
+                            f"{early_stopping_patience} epoch(s)."
+                        )
+                        break
 
             best_val_f1s.append(best_val_f1)
             best_epochs.append(best_epoch)

@@ -1,0 +1,25 @@
+{
+  "config_name": "doc_5e5_bs4",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "1941cf8efc60222b6d15ee6c48f321a8c9cb05e9",
+  "hyperparameters": {
+    "name": "doc_5e5_bs4",
+    "lr": 5e-05,
+    "crf_lr": 0.00025,
+    "epochs": 5,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 4
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "pytorch_crf_version": "0.7.2",
+  "model_id": "answerdotai/ModernBERT-base",
+  "max_seq_length": 8192,
+  "grad_accum_steps": 4,
+  "script": "train_modernbert_doc_crf_ner_doc5e5.py"
+}

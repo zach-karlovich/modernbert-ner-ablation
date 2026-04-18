@@ -1,0 +1,162 @@
+Using device: cuda
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG aligned_v2: lr=5e-05, epochs=8, early_stopping_patience=3, warmup=0.1, wd=0.01, bs=32, max_seq_length=128, clip=1
+############################################################
+
+==================================================
+[Config aligned_v2] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.324
+Val Loss: 0.045, Val F1: 0.9247
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.032
+Val Loss: 0.038, Val F1: 0.9410
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.014
+Val Loss: 0.037, Val F1: 0.9449
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.008
+Val Loss: 0.045, Val F1: 0.9417
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.039, Val F1: 0.9477
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.042, Val F1: 0.9537
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.044, Val F1: 0.9515
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.045, Val F1: 0.9523
+[Config aligned_v2] Seed 21 best dev F1 0.9537 at epoch 6; restored best checkpoint for test evaluation.
+
+==================================================
+[Config aligned_v2] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.323
+Val Loss: 0.049, Val F1: 0.9219
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.032
+Val Loss: 0.038, Val F1: 0.9404
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.014
+Val Loss: 0.042, Val F1: 0.9389
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.046, Val F1: 0.9441
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.044, Val F1: 0.9473
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.046, Val F1: 0.9471
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.049, Val F1: 0.9503
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.050, Val F1: 0.9508
+[Config aligned_v2] Seed 42 best dev F1 0.9508 at epoch 8; restored best checkpoint for test evaluation.
+
+==================================================
+[Config aligned_v2] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.332
+Val Loss: 0.049, Val F1: 0.9178
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.033
+Val Loss: 0.037, Val F1: 0.9415
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.039, Val F1: 0.9481
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.008
+Val Loss: 0.042, Val F1: 0.9431
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.004
+Val Loss: 0.038, Val F1: 0.9486
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.042, Val F1: 0.9513
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.042, Val F1: 0.9501
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.043, Val F1: 0.9512
+[Config aligned_v2] Seed 63 best dev F1 0.9513 at epoch 6; restored best checkpoint for test evaluation.
+
+=== Config aligned_v2 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1666  0.9255 ± 0.0107  0.9314 ± 0.0080  0.9283 ± 0.0015
+MISC              702  0.7823 ± 0.0104  0.8267 ± 0.0059  0.8038 ± 0.0041
+ORG              1661  0.8874 ± 0.0070  0.8991 ± 0.0038  0.8932 ± 0.0032
+PER              1615  0.9620 ± 0.0030  0.9606 ± 0.0016  0.9613 ± 0.0022
+micro avg        5644  0.9059 ± 0.0019  0.9172 ± 0.0036  0.9115 ± 0.0009
+macro avg        5644  0.8893 ± 0.0028  0.9044 ± 0.0039  0.8966 ± 0.0010
+weighted avg     5644  0.9069 ± 0.0016  0.9172 ± 0.0036  0.9119 ± 0.0010
+Saved to ner_bert_ref_v2.csv
+
+======================================================================
+HYPERPARAMETER SWEEP SUMMARY
+======================================================================
+    config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+aligned_v2 0.00005       8           0.1          0.01          32             128              1 0.9115 ± 0.0009 0.9519 ± 0.0013            6.67

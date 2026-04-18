@@ -1,0 +1,162 @@
+Using device: cuda
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG B_dropout_ls: lr=5e-05, max_epochs=8, early_stopping_patience=3, warmup=0.1, wd=0.05, bs=16, classifier_dropout=0.2, label_smoothing=0.1, max_seq_length=512, clip=1
+############################################################
+
+==================================================
+[Config B_dropout_ls] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.746
+Val Loss: 0.156, Val F1: 0.8941
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.516
+Val Loss: 0.128, Val F1: 0.9333
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.498
+Val Loss: 0.128, Val F1: 0.9352
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.493
+Val Loss: 0.124, Val F1: 0.9469
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.490
+Val Loss: 0.128, Val F1: 0.9467
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.488
+Val Loss: 0.126, Val F1: 0.9480
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.129, Val F1: 0.9460
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.127, Val F1: 0.9468
+[Config B_dropout_ls] Seed 21 best dev F1 0.9480 at epoch 6; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_dropout_ls] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.698
+Val Loss: 0.149, Val F1: 0.9066
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.514
+Val Loss: 0.133, Val F1: 0.9276
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.498
+Val Loss: 0.130, Val F1: 0.9397
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.492
+Val Loss: 0.124, Val F1: 0.9449
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.490
+Val Loss: 0.125, Val F1: 0.9405
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.488
+Val Loss: 0.122, Val F1: 0.9482
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.124, Val F1: 0.9503
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.124, Val F1: 0.9511
+[Config B_dropout_ls] Seed 42 best dev F1 0.9511 at epoch 8; restored best checkpoint for test evaluation.
+
+==================================================
+[Config B_dropout_ls] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/8
+------------------------------
+Train Loss: 0.698
+Val Loss: 0.148, Val F1: 0.9082
+
+Epoch 2/8
+------------------------------
+Train Loss: 0.513
+Val Loss: 0.129, Val F1: 0.9369
+
+Epoch 3/8
+------------------------------
+Train Loss: 0.498
+Val Loss: 0.132, Val F1: 0.9373
+
+Epoch 4/8
+------------------------------
+Train Loss: 0.492
+Val Loss: 0.121, Val F1: 0.9425
+
+Epoch 5/8
+------------------------------
+Train Loss: 0.490
+Val Loss: 0.128, Val F1: 0.9412
+
+Epoch 6/8
+------------------------------
+Train Loss: 0.488
+Val Loss: 0.124, Val F1: 0.9467
+
+Epoch 7/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.124, Val F1: 0.9480
+
+Epoch 8/8
+------------------------------
+Train Loss: 0.487
+Val Loss: 0.124, Val F1: 0.9500
+[Config B_dropout_ls] Seed 63 best dev F1 0.9500 at epoch 8; restored best checkpoint for test evaluation.
+
+=== Config B_dropout_ls Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9240 ± 0.0066  0.9205 ± 0.0023  0.9222 ± 0.0034
+MISC              702  0.7841 ± 0.0039  0.8153 ± 0.0076  0.7993 ± 0.0019
+ORG              1661  0.8445 ± 0.0098  0.8997 ± 0.0037  0.8712 ± 0.0066
+PER              1617  0.9654 ± 0.0029  0.9489 ± 0.0026  0.9571 ± 0.0005
+micro avg        5648  0.8932 ± 0.0046  0.9094 ± 0.0015  0.9012 ± 0.0031
+macro avg        5648  0.8795 ± 0.0035  0.8961 ± 0.0021  0.8875 ± 0.0027
+weighted avg     5648  0.8951 ± 0.0046  0.9094 ± 0.0015  0.9019 ± 0.0031
+Saved to ner_mbert_sent_v2_B_dropout_ls.csv
+
+======================================================================
+RUN SUMMARY
+======================================================================
+      config      lr head_lr  epochs  early_stopping_patience  warmup_ratio  weight_decay  batch_size  max_seq_length  gradient_clip                                 artifacts   test_micro_f1     best_dev_f1 best_epoch_mean
+B_dropout_ls 0.00005               8                        3           0.1          0.05          16             512              1 ner_mbert_sent_v2_B_dropout_ls.{csv,json} 0.9012 ± 0.0031 0.9497 ± 0.0013            7.33

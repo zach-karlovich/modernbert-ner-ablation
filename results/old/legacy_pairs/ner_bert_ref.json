@@ -1,0 +1,22 @@
+{
+  "config_name": "0",
+  "seeds": [
+    21,
+    42,
+    63
+  ],
+  "git_commit": "c52c62c33a1400a93e72274edb50331e34897cf2",
+  "hyperparameters": {
+    "name": "0",
+    "lr": 2e-05,
+    "epochs": 5,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "batch_size": 16
+  },
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.3.0",
+  "model_id": "bert-base-cased",
+  "max_seq_length": 512,
+  "script": "train_bert_ner.py"
+}

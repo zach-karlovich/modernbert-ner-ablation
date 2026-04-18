@@ -1,90 +1,37 @@
 """
 Toy checks for pytorch-crf: padding mask ignored at padded steps, BIO illegal
 transitions heavily penalized (e.g. B-LOC -> I-PER), and decode respects mask.
+
+Updated to use regression checks for:
+
+- padding/masks
+- transitions
+- CRF dense labeling against dataset 
 """
 
 import sys
 from pathlib import Path
 
 import torch
-from torchcrf import CRF
 
 _scripts = Path(__file__).resolve().parent
 if str(_scripts) not in sys.path:
     sys.path.insert(0, str(_scripts))
 
-from train_modernbert_doc_ner import label2id, label_list
+from conll2003_labels import label2id, label_list
+from crf_bio import make_constrained_crf
+from dense_bio_labels import (
+    assign_dense_bio_labels,
+    collapse_to_word_labels,
+    word_ids_list_to_tensor_ids,
+)
 
 root = Path.cwd() if (Path.cwd() / "pyproject.toml").exists() else Path.cwd().parent
 
-# CLAUDE SUPPORT FOR PENALTY AND NLL_MARGIN:
-# -1e4 is large enough to make illegal transitions effectively impossible in
-# log-space (exp(-1e4) ≈ 0), while staying well within float32 precision to
-# avoid NaN gradients.  NLL_MARGIN is a sanity threshold: the log-likelihood
-# gap between a legal and illegal path through the constrained CRF should
-# comfortably exceed this on a toy example with a single penalty-violating step.
-PENALTY = -1e4
 NLL_MARGIN = 50.0
 
 
-def parse_bio(label: str):
-    if label == "O":
-        return "O", None
-    kind, etype = label.split("-", 1)
-    return kind, etype
-
-
-def start_ok(label: str) -> bool:
-    kind, _ = parse_bio(label)
-    return kind in ("O", "B")
-
-
-def transition_ok(prev: str, nxt: str) -> bool:
-    """Check whether prev -> nxt is a legal BIO transition.
-
-    Legal transitions under standard BIO:
-      - Anything -> O
-      - Anything -> B-X  (B can always start a new entity)
-      - {B-X, I-X} -> I-X (continue same entity type only)
-    """
-    k_prev, t_prev = parse_bio(prev)
-    k_next, t_next = parse_bio(nxt)
-
-    if k_next == "O":
-        return True
-    if k_next == "B":
-        # B-X can follow anything: O, B-Y, B-X, I-Y, I-X are all legal.
-        return True
-    if k_next == "I":
-        # I-X must continue an open span of the same entity type.
-        return k_prev in ("B", "I") and t_prev == t_next
-    return False
-
-
-def apply_bio_constraints(crf: CRF, labels: list[str], penalty: float = PENALTY) -> None:
-    n = len(labels)
-    with torch.no_grad():
-        crf.transitions.fill_(penalty)
-        for i in range(n):
-            for j in range(n):
-                if transition_ok(labels[i], labels[j]):
-                    crf.transitions[i, j] = 0.0
-
-        crf.start_transitions.fill_(penalty)
-        for j in range(n):
-            if start_ok(labels[j]):
-                crf.start_transitions[j] = 0.0
-
-        crf.end_transitions.zero_()
-
-
-def make_constrained_crf() -> CRF:
-    crf = CRF(len(label_list), batch_first=True)
-    apply_bio_constraints(crf, label_list)
-    return crf
-
-
-def check_padding_mask_invariance(crf: CRF) -> None:
+def check_padding_mask_invariance(crf) -> None:
     torch.manual_seed(0)
     b, t_max, c = 2, 5, len(label_list)
     emissions = torch.randn(b, t_max, c)
@@ -112,8 +59,7 @@ def check_padding_mask_invariance(crf: CRF) -> None:
     print("  Padding mask (forward): PASS — mutating padded tag ids does not change log-likelihood")
 
 
-def check_decode_respects_mask(crf: CRF) -> None:
-    """Verify that crf.decode() returns sequences whose lengths match the mask."""
+def check_decode_respects_mask(crf) -> None:
     torch.manual_seed(1)
     b, t_max, c = 4, 8, len(label_list)
     emissions = torch.randn(b, t_max, c)
@@ -133,7 +79,7 @@ def check_decode_respects_mask(crf: CRF) -> None:
     )
 
 
-def check_illegal_transition_paris_scene(crf: CRF) -> None:
+def check_illegal_transition_paris_scene(crf) -> None:
     id2label = {v: k for k, v in label2id.items()}
     o = label2id["O"]
     b_loc = label2id["B-LOC"]
@@ -172,8 +118,7 @@ def check_illegal_transition_paris_scene(crf: CRF) -> None:
     print(f"  Illegal vs legal tag sequence: PASS (gap > {NLL_MARGIN})")
 
 
-def check_consecutive_same_type_entities(crf: CRF) -> None:
-    """Verify B-LOC -> B-LOC is legal (two adjacent single-token LOC entities)."""
+def check_consecutive_same_type_entities(crf) -> None:
     id2label = {v: k for k, v in label2id.items()}
     o = label2id["O"]
     b_loc = label2id["B-LOC"]
@@ -200,6 +145,81 @@ def check_consecutive_same_type_entities(crf: CRF) -> None:
     print(f"  Log-likelihood of [O, B-LOC, B-LOC]: {ll.item():.2f} (should not be penalized) PASS")
 
 
+def check_dense_label_roundtrip_manual() -> None:
+    from transformers import AutoTokenizer
+
+    id2label = {i: label for i, label in enumerate(label_list)}
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
+    words = ["EU", "rejects", "German", "call", "to", "boycott", "British", "lamb"]
+    tags = ["B-ORG", "O", "B-MISC", "O", "O", "O", "B-MISC", "O"]
+    enc = tokenizer(
+        words,
+        is_split_into_words=True,
+        return_tensors="pt",
+        padding=False,
+        truncation=True,
+        max_length=512,
+    )
+    wids = enc.word_ids()
+    dense_ids = assign_dense_bio_labels(wids, tags)
+    row_w = word_ids_list_to_tensor_ids(wids)
+    mask = enc["attention_mask"][0].tolist()
+    collapsed = collapse_to_word_labels(row_w, dense_ids, mask, id2label)
+    assert collapsed == tags, f"sentence roundtrip: {collapsed!r} vs {tags!r}"
+    print("  Dense BIO roundtrip (manual sentence): PASS")
+
+
+def check_dense_label_roundtrip_datasets() -> None:
+    from transformers import AutoTokenizer
+
+    from conll2003_parse import parse_conll
+    from train_modernbert_crf_ner import ConllDatasetCRF
+    from train_modernbert_doc_crf_ner import ConllDocContextDatasetCRF, parse_conll_documents
+
+    id2label = {i: label for i, label in enumerate(label_list)}
+    data_dir = root / "data" / "conll2003"
+    if not (data_dir / "eng.train").exists():
+        print("  Dense BIO roundtrip (datasets): SKIP — data/conll2003 not present")
+        return
+
+    tok = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base", trust_remote_code=True)
+    if tok.pad_token_id is None and tok.eos_token is not None:
+        tok.pad_token = tok.eos_token
+
+    sents = parse_conll(data_dir / "eng.train")
+    ds_s = ConllDatasetCRF(sents[:50], tok, max_length=512)
+    for i in range(min(10, len(ds_s))):
+        item = ds_s[i]
+        L = int(item["attention_mask"].sum())
+        row_w = item["word_ids"][:L].tolist()
+        row_m = item["attention_mask"][:L].tolist()
+        gold_dense = item["labels"][:L].tolist()
+        collapsed = collapse_to_word_labels(row_w, gold_dense, row_m, id2label)
+        gold_words = [t for _, t in sents[i]]
+        assert collapsed == gold_words, f"sentence idx {i}: {collapsed!r} vs {gold_words!r}"
+
+    docs = parse_conll_documents(data_dir / "eng.train")
+    ds_d = ConllDocContextDatasetCRF(
+        docs, tok, max_length=512, window_mode="eval"
+    )
+    for i in range(min(10, len(ds_d))):
+        item = ds_d[i]
+        L = int(item["attention_mask"].sum())
+        row_w = item["word_ids"][:L].tolist()
+        row_m = item["attention_mask"][:L].tolist()
+        gold_dense = item["labels"][:L].tolist()
+        winc = item["word_include_mask"]
+        collapsed = collapse_to_word_labels(
+            row_w, gold_dense, row_m, id2label, word_include_mask=winc
+        )
+        d_idx, s_idx = ds_d.targets[i]
+        target_sent = docs[d_idx][s_idx]
+        gold_words = [t for _, t in target_sent]
+        assert collapsed == gold_words, f"doc idx {i}: {collapsed!r} vs {gold_words!r}"
+
+    print("  Dense BIO roundtrip (ConllDatasetCRF + ConllDocContextDatasetCRF): PASS")
+
+
 def main() -> None:
     assert (root / "pyproject.toml").exists(), f"Run from project root; cwd={Path.cwd()}"
 
@@ -221,9 +241,12 @@ def main() -> None:
     print("\nCheck 4: consecutive same-type entities (B-LOC -> B-LOC)")
     check_consecutive_same_type_entities(crf)
 
+    print("\nCheck 5: dense BIO assign + collapse roundtrip")
+    check_dense_label_roundtrip_manual()
+    check_dense_label_roundtrip_datasets()
+
     print("\nAll checks passed.")
 
 
 if __name__ == "__main__":
     main()
-
