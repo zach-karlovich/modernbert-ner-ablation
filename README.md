@@ -4,7 +4,7 @@ BERT and ModernBERT results (linear and CRF heads, sentence and document context
 
 Evaluating document-level context and CRF decoding in ModernBERT for CoNLL-2003 named entity recognition (NER).
 
-Overleaf document: [moderbert-ner-ablation](https://www.overleaf.com/project/6996373c44b841199bc3c599)
+Overleaf document: [modernbert-ner-ablation](https://www.overleaf.com/project/6996373c44b841199bc3c599)
 
 ## Abstract
 
@@ -38,14 +38,14 @@ Numbers are mean ± std over seeds 21, 42, 63. Per seed, evaluation uses the che
 
 ### Overall F1
 
-| Model                                                    | Micro F1            | Macro F1            |
-| -------------------------------------------------------- | ------------------- | ------------------- |
-| BERT-base-cased (sentence-level, no CRF)                 | 0.9137 ± 0.0017     | 0.8993 ± 0.0018     |
-| BERT-base-cased (document windows, no CRF)               | 0.8915 ± 0.0031     | 0.8777 ± 0.0022     |
-| ModernBERT-base (sentence-level, `B_dropout_ls`)         | 0.9012 ± 0.0031     | 0.8875 ± 0.0027     |
-| ModernBERT-base + document context (`doc_4e5_bs2`)       | **0.9161 ± 0.0023** | **0.9000 ± 0.0023** |
-| ModernBERT-base + CRF (sentence-level, config G)         | 0.9015 ± 0.0021     | 0.8887 ± 0.0026     |
-| ModernBERT-base + document context + CRF (`doc_5e5_bs4`) | 0.9012 ± 0.0013     | 0.8843 ± 0.0022     |
+| Model                                      | Micro F1            | Macro F1            |
+| ------------------------------------------ | ------------------- | ------------------- |
+| BERT-base-cased (sentence-level, no CRF)   | 0.9137 ± 0.0017     | 0.8993 ± 0.0018     |
+| BERT-base-cased (document context, no CRF) | 0.8915 ± 0.0031     | 0.8777 ± 0.0022     |
+| ModernBERT-base (sentence-level, no CRF)   | 0.9012 ± 0.0031     | 0.8875 ± 0.0027     |
+| ModernBERT-base (document context)         | **0.9161 ± 0.0023** | **0.9000 ± 0.0023** |
+| ModernBERT-base (CRF, sentence-level)      | 0.9015 ± 0.0021     | 0.8887 ± 0.0026     |
+| ModernBERT-base (document context + CRF)   | 0.9012 ± 0.0013     | 0.8843 ± 0.0022     |
 
 ### Per-entity F1
 
@@ -63,6 +63,23 @@ Entity order: PER, ORG, LOC, MISC.
 - **Selected model:** ModernBERT-base + document context
 - **Best test performance:** micro F1 **0.9161** (macro F1 **0.9000**)
 - **Entity-level note:** legacy BERT shows stronger per-entity F1 on **ORG**, **LOC**, and **MISC**, while ModernBERT document is strongest on **PER**.
+
+## Scope and Limitations
+
+- Findings are scoped to CoNLL-2003 and this experimental pipeline.
+- Comparisons are not fully HP-matched across all model variants.
+- Document-context runs trade significantly higher runtime for context coverage.
+- Long-context: across all CoNLL-2003 splits, no document exceeded the ModernBERT content budget (8190 subwords), so long-context capacity is not fully stressed.
+
+## Compute and Runtime
+
+All training runs were conducted on [UVA High-Performance Computing](https://www.rc.virginia.edu/service/high-performance-computing/).
+
+- **BERT family:** ~1-6 hours (`train_bert`: 1h, `train_bert_doc`: 6h)
+- **ModernBERT (sentence family):** ~4-6 hours (`train_mbert`: 4h, `train_mbert_crf`: 6h)
+- **ModernBERT (document family):** ~18-22 hours (`train_mbert_doc`: 18h, `train_mbert_doc_crf`: 22h, longest)
+
+Times are requested SLURM wall-time envelopes; actual completion can vary by queue wait and allocation.
 
 ## Environment Setup
 
@@ -122,7 +139,7 @@ Document ModernBERT softmax ([`train_modernbert_doc_ner.py`](scripts/train_moder
 
 ```python
 HP_CONFIG = {
-    "name": "test_config",
+    "name": "doc_4e5_bs2",
     "lr": 4e-5,
     "epochs": 5,
     "warmup_ratio": 0.10,
