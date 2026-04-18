@@ -58,9 +58,11 @@ Entity order: PER, ORG, LOC, MISC.
 | LOC    | **0.9309** ± 0.0003 | 0.9077 ± 0.0068 | 0.9222 ± 0.0034       | 0.9283 ± 0.0023       | 0.9233 ± 0.0022          | 0.9170 ± 0.0008        |
 | MISC   | **0.8093** ± 0.0030 | 0.7910 ± 0.0047 | 0.7993 ± 0.0019       | 0.7981 ± 0.0050       | 0.8072 ± 0.0059          | 0.7759 ± 0.0099        |
 
-## Planned Final Model
+## Selected Model
 
-Reported above: BERT and ModernBERT variants across document context and CRF (plus BERT/ModernBERT sentence baselines). **ModernBERT + document context** achieves the highest test micro F1 in this table (**0.9161**). Document **CRF** is slightly below document linear and ties sentence CRF on micro F1 (0.9012 vs 0.9015).
+- **Selected model:** ModernBERT-base + document context
+- **Best test performance:** micro F1 **0.9161** (macro F1 **0.9000**)
+- **Entity-level note:** legacy BERT shows stronger per-entity F1 on **ORG**, **LOC**, and **MISC**, while ModernBERT document is strongest on **PER**.
 
 ## Environment Setup
 
