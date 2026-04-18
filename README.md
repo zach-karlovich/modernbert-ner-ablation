@@ -60,7 +60,7 @@ Entity order: PER, ORG, LOC, MISC.
 
 ## Planned Final Model
 
-Reported above: BERT and ModernBERT variants across document context and CRF (plus BERT/ModernBERT sentence baselines). **ModernBERT + document context** (`doc_4e5_bs2`) achieves the highest test micro F1 in this table (**0.9161**). Document **CRF** is slightly below document linear and ties sentence CRF on micro F1 (0.9012 vs 0.9015).
+Reported above: BERT and ModernBERT variants across document context and CRF (plus BERT/ModernBERT sentence baselines). **ModernBERT + document context** achieves the highest test micro F1 in this table (**0.9161**). Document **CRF** is slightly below document linear and ties sentence CRF on micro F1 (0.9012 vs 0.9015).
 
 ## Environment Setup
 
