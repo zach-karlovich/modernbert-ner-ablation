@@ -5,9 +5,7 @@ logic from notebooks/00bert_baseline.ipynb.
 
 Run identity: sentence-level examples only (`parse_conll` skips `-DOCSTART-`);
 softmax token head; seqeval F1. Reference encoder for the ModernBERT ablation.
-Outputs `ner_bert_ref.{csv,json}`. HPs live in `HP_CONFIGS` below (default
-`max_seq_length` 128 is standard for CoNLL sentence NER; use 512 there if you
-want zero truncation margin)."""
+Outputs `ner_bert.{csv,json}`. HPs live in `HP_CONFIG` below."""
 
 import copy
 import json
@@ -35,12 +33,12 @@ from conll2003_expectations import (
 )
 from conll2003_parse import parse_conll
 
-OUTPUT_STEM = "ner_bert_ref_v2"
+OUTPUT_STEM = "ner_bert"
 
 RUN_DESCRIPTION = (
     "Sentence-level bert-base-cased on CoNLL-2003; softmax head; -DOCSTART- "
-    "ignored so no cross-sentence context. Config aligned_v2: wd 0.01, 8 epochs + "
-    "early stopping (patience 3). Writes ner_bert_ref_v2.{csv,json}."
+    "ignored so no cross-sentence context. Config 0: lr 2e-5, wd 0.01, "
+    "5 epochs, batch size 16, max_seq_length 512. Writes ner_bert.{csv,json}."
 )
 
 
@@ -314,24 +312,21 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
-    HP_CONFIGS = [
-        {
-            "name": "aligned_v2",
-            "lr": 5e-5,
-            "epochs": 8,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 32,
-            "max_seq_length": 128,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "0",
+        "lr": 2e-5,
+        "epochs": 5,
+        "warmup_ratio": 0.10,
+        "weight_decay": 0.01,
+        "batch_size": 16,
+        "max_seq_length": 512,
+    }
 
     summary_rows = []
     prev_max_seq: int | None = None
     loader_generator = torch.Generator()
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         n_epochs = cfg["epochs"]

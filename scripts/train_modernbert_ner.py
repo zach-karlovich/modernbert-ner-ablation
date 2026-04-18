@@ -1,9 +1,9 @@
 """Fine-tune ModernBERT-base on CoNLL-2003 NER. Adapted from train_bert_ner.py.
 
 Run identity: sentence-level (`parse_conll` skips `-DOCSTART-`); softmax head; seqeval.
-Sentence side of the factorial vs doc-context + CRF runs. `HP_CONFIGS` lists
-optimized sentence-level runs (LR / discriminative head / batch size + early stopping).
-Outputs per config: `ner_mbert_sent_best_<name>.{csv,json}`."""
+Sentence side of the factorial vs doc-context + CRF runs. `HP_CONFIG` stores the
+selected sentence-level run (LR / regularization / early stopping).
+Outputs `ner_mbert.{csv,json}`."""
 
 import copy
 import json
@@ -31,12 +31,12 @@ from conll2003_expectations import (
 )
 from conll2003_parse import parse_conll
 
-OUTPUT_STEM = "ner_mbert_sent_v2"
+OUTPUT_STEM = "ner_mbert"
 
 RUN_DESCRIPTION = (
     "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. "
     "Config B_dropout_ls: classifier_dropout 0.2, label_smoothing 0.1, wd 0.05, "
-    "8 epochs + early stopping. Writes ner_mbert_sent_v2_<config_name>.{csv,json}."
+    "8 epochs + early stopping. Writes ner_mbert.{csv,json}."
 )
 
 
@@ -384,26 +384,24 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn(tokenizer.pad_token_id)
 
-    HP_CONFIGS = [
-        {
-            "name": "B_dropout_ls",
-            "lr": 5e-5,
-            "epochs": 8,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.05,
-            "batch_size": 16,
-            "max_seq_length": 512,
-            "classifier_dropout": 0.2,
-            "label_smoothing": 0.1,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "B_dropout_ls",
+        "lr": 5e-5,
+        "epochs": 8,
+        "early_stopping_patience": 3,
+        "warmup_ratio": 0.10,
+        "weight_decay": 0.05,
+        "batch_size": 16,
+        "max_seq_length": 512,
+        "classifier_dropout": 0.2,
+        "label_smoothing": 0.1,
+    }
 
     summary_rows = []
     prev_batch_size = None
     prev_max_seq: int | None = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         n_epochs = cfg["epochs"]
@@ -447,7 +445,7 @@ if __name__ == "__main__":
             prev_batch_size = batch_size
 
         manifest_hp = {**cfg, "gradient_clip": CLIP, "context": "sentence"}
-        artifact_stem = f"{OUTPUT_STEM}_{cfg_name}"
+        artifact_stem = OUTPUT_STEM
 
         print(f"\n{'#' * 60}")
         es_note = (

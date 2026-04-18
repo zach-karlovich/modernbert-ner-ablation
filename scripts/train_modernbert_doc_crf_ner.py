@@ -2,7 +2,7 @@
 
 Run identity: `-DOCSTART-` sliding windows; CRF head; Doc.+CRF factorial cell. Rivanna-oriented
 opts: bf16 autocast, gradient checkpointing, batch 4 × grad_accum 4 (effective 16), pin_memory.
-Output `ner_mbert_doc_crf_tuned.{csv,json}`; HP in `HP_CONFIG`."""
+Output `ner_mbert_doc_crf.{csv,json}`; HP in `HP_CONFIG`."""
 
 import copy
 import json
@@ -41,12 +41,12 @@ MODEL_ID = "answerdotai/ModernBERT-base"
 MAX_SEQ_LENGTH = 8192
 GRAD_ACCUM_STEPS = 4
 WORD_PAD_ID = -99
-OUTPUT_STEM = "ner_mbert_doc_crf_v2"
+OUTPUT_STEM = "ner_mbert_doc_crf"
 
 RUN_DESCRIPTION = (
     "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config "
-    "doc_4e5_bs4_crf_v2: lr 4e-5, crf_lr 5e-4, classifier_dropout 0.1, 8 epochs + "
-    "early stopping (patience 3). Writes ner_mbert_doc_crf_v2.{csv,json}."
+    "doc_5e5_bs4: lr 5e-5, crf_lr 2.5e-4, wd 0.01, 5 epochs, batch size 4. "
+    "Writes ner_mbert_doc_crf.{csv,json}."
 )
 
 
@@ -490,15 +490,13 @@ NUM_WORKERS = 2
 SCRIPT_NAME = "train_modernbert_doc_crf_ner.py"
 
 HP_CONFIG = {
-    "name": "doc_4e5_bs4_crf_v2",
-    "lr": 4e-5,
-    "crf_lr": 5e-4,
-    "epochs": 8,
-    "early_stopping_patience": 3,
+    "name": "doc_5e5_bs4",
+    "lr": 5e-5,
+    "crf_lr": 2.5e-4,
+    "epochs": 5,
     "warmup_ratio": 0.10,
     "weight_decay": 0.01,
     "batch_size": 4,
-    "classifier_dropout": 0.1,
 }
 
 if __name__ == "__main__":

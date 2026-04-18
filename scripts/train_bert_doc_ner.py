@@ -5,7 +5,7 @@ at 512 subwords so cross-sentence context is less than ModernBERT at 8192.
 
 Run identity: `-DOCSTART-` respected; per-sentence labels with neighbor context;
 softmax head; seqeval. Pairs with train_bert_ner.py (sentence-only reference).
-Outputs `ner_bert_doc_ref.{csv,json}`. HPs in `HP_CONFIGS` below."""
+Outputs `ner_bert_doc.{csv,json}`. HPs in `HP_CONFIG` below."""
 
 import copy
 import json
@@ -40,13 +40,13 @@ from sliding_window_conll import (
 MODEL_ID = "bert-base-cased"
 MAX_SEQ_LENGTH = 512
 GRAD_ACCUM_STEPS = 2
-OUTPUT_STEM = "ner_bert_doc_ref_v2"
+OUTPUT_STEM = "ner_bert_doc"
 
 RUN_DESCRIPTION = (
     "Document-context bert-base-cased on CoNLL-2003; windows up to 512 subwords; "
     "same sliding-window machinery as ModernBERT doc trainer but BERT length cap. "
-    "Config bert_doc_v2: wd 0.01, 8 epochs + early stopping (patience 3). "
-    "Writes ner_bert_doc_ref_v2.{csv,json}."
+    "Config bert_doc_aligned: lr 5e-5, wd 1e-5, 5 epochs, batch size 16. "
+    "Writes ner_bert_doc.{csv,json}."
 )
 
 
@@ -602,22 +602,19 @@ if __name__ == "__main__":
     # Generator for reproducible DataLoader shuffling per seed
     loader_generator = torch.Generator()
 
-    HP_CONFIGS = [
-        {
-            "name": "bert_doc_v2",
-            "lr": 5e-5,
-            "epochs": 8,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.01,
-            "batch_size": 16,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "bert_doc_aligned",
+        "lr": 5e-5,
+        "epochs": 5,
+        "warmup_ratio": 0.10,
+        "weight_decay": 1e-5,
+        "batch_size": 16,
+    }
 
     summary_rows = []
     prev_batch_size = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         n_epochs = cfg["epochs"]

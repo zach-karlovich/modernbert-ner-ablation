@@ -1,7 +1,7 @@
 """Fine-tune ModernBERT-base + linear-chain CRF on CoNLL-2003 NER (sentence-level).
 
 Run identity: sentence-level; CRF decoder; dense BIO labels; seqeval. Sent.+CRF cell of
-the factorial. Output stem `ner_mbert_sent_crf_best.{csv,json}`; HPs in `HP_CONFIGS`."""
+the factorial. Output stem `ner_mbert_crf.{csv,json}`; HPs in `HP_CONFIG`."""
 
 import copy
 import json
@@ -34,12 +34,12 @@ from modernbert_crf_model import ModernBertTokenCRF, build_crf_optimizer
 
 MODEL_ID = "answerdotai/ModernBERT-base"
 WORD_PAD_ID = -99
-OUTPUT_STEM = "ner_mbert_sent_crf_v2"
+OUTPUT_STEM = "ner_mbert_crf"
 
 RUN_DESCRIPTION = (
-    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G_reg: "
-    "classifier_dropout 0.15, wd 0.05, 12 epochs + early stopping (patience 3). "
-    "Writes ner_mbert_sent_crf_v2.{csv,json}."
+    "Sentence-level ModernBERT-base + CRF on CoNLL-2003. "
+    "Config G: lr 6e-5, crf_lr 3e-4, wd 0.01, 10 epochs, batch size 32. "
+    "Writes ner_mbert_crf.{csv,json}."
 )
 
 
@@ -285,24 +285,20 @@ if __name__ == "__main__":
 
     collate_fn = make_collate_fn_crf(tokenizer.pad_token_id, label_pad_id=label2id["O"])
 
-    HP_CONFIGS = [
-        {
-            "name": "G_reg",
-            "lr": 6e-5,
-            "crf_lr": 3e-4,
-            "epochs": 12,
-            "early_stopping_patience": 3,
-            "warmup_ratio": 0.10,
-            "weight_decay": 0.05,
-            "batch_size": 32,
-            "classifier_dropout": 0.15,
-        },
-    ]
+    HP_CONFIG = {
+        "name": "G",
+        "lr": 6e-5,
+        "crf_lr": 3e-4,
+        "epochs": 10,
+        "warmup_ratio": 0.10,
+        "weight_decay": 0.01,
+        "batch_size": 32,
+    }
 
     summary_rows = []
     prev_batch_size = None
 
-    for cfg in HP_CONFIGS:
+    for cfg in [HP_CONFIG]:
         cfg_name = cfg["name"]
         lr = cfg["lr"]
         crf_lr = cfg["crf_lr"]
