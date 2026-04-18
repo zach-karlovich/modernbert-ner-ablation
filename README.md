@@ -101,7 +101,7 @@ From the project root (after `uv sync`), run a trainer with:
 uv run python scripts/<training_file>.py
 ```
 
-Each script writes metrics under [`results/`](results/) per its `OUTPUT_STEM` (paired `.csv` + `.json`). Hyperparameters live in that script’s `HP_CONFIG` (see [Hyperparameters (`HP_CONFIG`)](#hyperparameters-hp_config)). Headline aggregates in **Results** may match a sweep file copied into `results/`; ad-hoc runs are archived under [`results/old/`](results/old/).
+Each script writes metrics under [`results/`](results/) per its `OUTPUT_STEM` (paired `.csv` + `.json`). Hyperparameters live in that script’s `HP_CONFIG` (see [Hyperparameters (`HP_CONFIG`)](#hyperparameters-hp_config)).
 
 | Script                                                                       | Default output stem (see script) |
 | ---------------------------------------------------------------------------- | -------------------------------- |
