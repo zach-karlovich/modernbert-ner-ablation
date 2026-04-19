@@ -1,0 +1,117 @@
+Using device: cuda
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+
+############################################################
+CONFIG 0: lr=2e-05, epochs=5, warmup=0.1, wd=0.01, bs=16, max_seq_length=512, clip=1
+############################################################
+
+==================================================
+[Config 0] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.298
+Val Loss: 0.041, Val F1: 0.9329
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.031
+Val Loss: 0.037, Val F1: 0.9431
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.036, Val F1: 0.9472
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.009
+Val Loss: 0.038, Val F1: 0.9516
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.039, Val F1: 0.9525
+[Config 0] Seed 21 best dev F1 0.9525 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config 0] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.299
+Val Loss: 0.045, Val F1: 0.9273
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.032
+Val Loss: 0.039, Val F1: 0.9435
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.040, Val F1: 0.9450
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.009
+Val Loss: 0.041, Val F1: 0.9470
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.043, Val F1: 0.9495
+[Config 0] Seed 42 best dev F1 0.9495 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config 0] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.307
+Val Loss: 0.045, Val F1: 0.9303
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.032
+Val Loss: 0.039, Val F1: 0.9416
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.015
+Val Loss: 0.039, Val F1: 0.9469
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.009
+Val Loss: 0.045, Val F1: 0.9456
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.006
+Val Loss: 0.044, Val F1: 0.9487
+[Config 0] Seed 63 best dev F1 0.9487 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config 0 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9309 ± 0.0017  0.9313 ± 0.0012  0.9311 ± 0.0004
+MISC              702  0.7729 ± 0.0101  0.8314 ± 0.0048  0.8010 ± 0.0056
+ORG              1661  0.8776 ± 0.0042  0.9131 ± 0.0045  0.8950 ± 0.0027
+PER              1617  0.9656 ± 0.0039  0.9594 ± 0.0028  0.9625 ± 0.0005
+micro avg        5648  0.9038 ± 0.0016  0.9216 ± 0.0019  0.9126 ± 0.0008
+macro avg        5648  0.8867 ± 0.0027  0.9088 ± 0.0023  0.8974 ± 0.0014
+weighted avg     5648  0.9055 ± 0.0015  0.9216 ± 0.0019  0.9133 ± 0.0009
+Saved to ner_bert.csv
+
+======================================================================
+HYPERPARAMETER SWEEP SUMMARY
+======================================================================
+config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+     0 0.00002       5           0.1          0.01          16             512              1 0.9126 ± 0.0008 0.9502 ± 0.0017            5.00

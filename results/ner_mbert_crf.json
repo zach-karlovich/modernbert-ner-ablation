@@ -5,7 +5,7 @@
     42,
     63
   ],
-  "git_commit": "a1ea08bb03cf275ec5d7502ca5f910d4a990b795",
+  "git_commit": "51783a7197a58059454975a7540d193103ee960c",
   "hyperparameters": {
     "name": "G",
     "lr": 6e-05,
@@ -21,5 +21,5 @@
   "model_id": "answerdotai/ModernBERT-base",
   "max_seq_length": 512,
   "script": "train_modernbert_crf_ner.py",
-  "run_description": "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G in HP_CONFIGS. Writes ner_mbert_sent_crf_best.{csv,json}."
+  "run_description": "Sentence-level ModernBERT-base + CRF on CoNLL-2003. Config G: lr 6e-5, crf_lr 3e-4, wd 0.01, 10 epochs, batch size 32. Writes ner_mbert_crf.{csv,json}."
 }

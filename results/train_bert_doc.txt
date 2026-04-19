@@ -1,0 +1,121 @@
+Using device: cuda
+Model: bert-base-cased, max_seq_length=512, grad_accum_steps=2
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+Train dataset: base_sentences=14041 rows=14041 multi_window_overflow_sources=0 window_mode=train overlap=128
+Dev dataset: base_sentences=3250 rows=3250 multi_window_overflow_sources=0 window_mode=eval overlap=128
+Test dataset: base_sentences=3453 rows=3453 multi_window_overflow_sources=0 window_mode=eval overlap=128
+
+############################################################
+CONFIG bert_doc_aligned: lr=5e-05, epochs=5, warmup=0.1, wd=1e-05, bs=16, max_seq_length=512, clip=1, grad_accum=2
+############################################################
+
+==================================================
+[Config bert_doc_aligned] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.267
+Val Loss: 0.052, Val F1: 0.9162
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.037
+Val Loss: 0.047, Val F1: 0.9248
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.020
+Val Loss: 0.045, Val F1: 0.9353
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.011
+Val Loss: 0.046, Val F1: 0.9371
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.046, Val F1: 0.9342
+[Config bert_doc_aligned] Seed 21 best dev F1 0.9371 at epoch 4; restored best checkpoint for test evaluation.
+
+==================================================
+[Config bert_doc_aligned] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.263
+Val Loss: 0.064, Val F1: 0.9133
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.037
+Val Loss: 0.048, Val F1: 0.9268
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.020
+Val Loss: 0.044, Val F1: 0.9348
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.047, Val F1: 0.9270
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.048, Val F1: 0.9319
+[Config bert_doc_aligned] Seed 42 best dev F1 0.9348 at epoch 3; restored best checkpoint for test evaluation.
+
+==================================================
+[Config bert_doc_aligned] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.268
+Val Loss: 0.055, Val F1: 0.9094
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.038
+Val Loss: 0.042, Val F1: 0.9332
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.021
+Val Loss: 0.044, Val F1: 0.9367
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.046, Val F1: 0.9312
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.007
+Val Loss: 0.047, Val F1: 0.9353
+[Config bert_doc_aligned] Seed 63 best dev F1 0.9367 at epoch 3; restored best checkpoint for test evaluation.
+
+=== Config bert_doc_aligned Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9019 ± 0.0040  0.9113 ± 0.0018  0.9066 ± 0.0018
+MISC              702  0.7576 ± 0.0168  0.8234 ± 0.0076  0.7890 ± 0.0099
+ORG              1661  0.8460 ± 0.0058  0.8916 ± 0.0074  0.8682 ± 0.0041
+PER              1617  0.9320 ± 0.0072  0.9540 ± 0.0029  0.9429 ± 0.0045
+micro avg        5648  0.8748 ± 0.0040  0.9068 ± 0.0032  0.8905 ± 0.0032
+macro avg        5648  0.8594 ± 0.0053  0.8951 ± 0.0032  0.8767 ± 0.0038
+weighted avg     5648  0.8761 ± 0.0039  0.9068 ± 0.0032  0.8911 ± 0.0031
+Saved to ner_bert_doc.csv
+
+======================================================================
+RUN SUMMARY
+======================================================================
+          config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  grad_accum_steps  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+bert_doc_aligned 0.00005       5           0.1       0.00001          16             512                 2              1 0.8905 ± 0.0032 0.9362 ± 0.0010            3.33

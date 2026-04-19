@@ -5,7 +5,7 @@
     42,
     63
   ],
-  "git_commit": "1ffd7c15b19c9950fbd343545bdfd98803f2611b",
+  "git_commit": "51783a7197a58059454975a7540d193103ee960c",
   "hyperparameters": {
     "name": "bert_doc_aligned",
     "lr": 5e-05,
@@ -24,7 +24,7 @@
   "max_seq_length": 512,
   "grad_accum_steps": 2,
   "script": "train_bert_doc_ner.py",
-  "run_description": "Document-context bert-base-cased on CoNLL-2003; windows up to 512 subwords; same sliding-window machinery as ModernBERT doc trainer but BERT length cap. Optimizer HPs aligned with train_bert_ner.py. Writes ner_bert_doc_ref.{csv,json}.",
+  "run_description": "Document-context bert-base-cased on CoNLL-2003; windows up to 512 subwords; same sliding-window machinery as ModernBERT doc trainer but BERT length cap. Config bert_doc_aligned: lr 5e-5, wd 1e-5, 5 epochs, batch size 16. Writes ner_bert_doc.{csv,json}.",
   "sliding_window_token_overlap": 128,
   "dataset_train_rows": 14041,
   "dataset_dev_rows": 3250,

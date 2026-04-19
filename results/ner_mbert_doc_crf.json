@@ -5,7 +5,7 @@
     42,
     63
   ],
-  "git_commit": "a1ea08bb03cf275ec5d7502ca5f910d4a990b795",
+  "git_commit": "51783a7197a58059454975a7540d193103ee960c",
   "hyperparameters": {
     "name": "doc_5e5_bs4",
     "lr": 5e-05,
@@ -22,7 +22,7 @@
   "max_seq_length": 8192,
   "grad_accum_steps": 4,
   "script": "train_modernbert_doc_crf_ner.py",
-  "run_description": "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config doc_5e5_bs4 in HP_CONFIG. Writes ner_mbert_doc_crf_tuned.{csv,json}.",
+  "run_description": "Document-context ModernBERT-base + CRF on CoNLL-2003; max 8192; config doc_5e5_bs4: lr 5e-5, crf_lr 2.5e-4, wd 0.01, 5 epochs, batch size 4. Writes ner_mbert_doc_crf.{csv,json}.",
   "sliding_window_token_overlap": 128,
   "dataset_train_rows": 14041,
   "dataset_dev_rows": 3250,

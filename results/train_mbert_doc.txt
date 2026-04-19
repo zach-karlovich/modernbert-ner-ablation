@@ -1,0 +1,121 @@
+Using device: cuda
+Model: answerdotai/ModernBERT-base, max_seq_length=8192, grad_accum_steps=8
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+Train dataset: base_sentences=14041 rows=14041 multi_window_overflow_sources=0 window_mode=train overlap=128
+Dev dataset: base_sentences=3250 rows=3250 multi_window_overflow_sources=0 window_mode=eval overlap=128
+Test dataset: base_sentences=3453 rows=3453 multi_window_overflow_sources=0 window_mode=eval overlap=128
+
+############################################################
+CONFIG doc_4e5_bs2: lr=4e-05, epochs=5, warmup=0.1, wd=0.01, bs=2, max_seq_length=8192, clip=1, grad_accum=8
+############################################################
+
+==================================================
+[Config doc_4e5_bs2] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.275
+Val Loss: 0.056, Val F1: 0.9316
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.030
+Val Loss: 0.038, Val F1: 0.9496
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.013
+Val Loss: 0.038, Val F1: 0.9519
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.045, Val F1: 0.9536
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.047, Val F1: 0.9572
+[Config doc_4e5_bs2] Seed 21 best dev F1 0.9572 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_4e5_bs2] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.211
+Val Loss: 0.050, Val F1: 0.9332
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.030
+Val Loss: 0.037, Val F1: 0.9501
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.012
+Val Loss: 0.040, Val F1: 0.9469
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.041, Val F1: 0.9587
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.045, Val F1: 0.9591
+[Config doc_4e5_bs2] Seed 42 best dev F1 0.9591 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_4e5_bs2] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.239
+Val Loss: 0.046, Val F1: 0.9393
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.029
+Val Loss: 0.041, Val F1: 0.9453
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.013
+Val Loss: 0.038, Val F1: 0.9579
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.005
+Val Loss: 0.042, Val F1: 0.9591
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.048, Val F1: 0.9596
+[Config doc_4e5_bs2] Seed 63 best dev F1 0.9596 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config doc_4e5_bs2 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9323 ± 0.0038  0.9215 ± 0.0047  0.9268 ± 0.0039
+MISC              702  0.7821 ± 0.0125  0.8134 ± 0.0035  0.7974 ± 0.0049
+ORG              1661  0.8572 ± 0.0092  0.9221 ± 0.0046  0.8885 ± 0.0069
+PER              1617  0.9841 ± 0.0008  0.9804 ± 0.0015  0.9822 ± 0.0011
+micro avg        5648  0.9045 ± 0.0055  0.9251 ± 0.0028  0.9147 ± 0.0042
+macro avg        5648  0.8889 ± 0.0058  0.9094 ± 0.0019  0.8987 ± 0.0040
+weighted avg     5648  0.9063 ± 0.0050  0.9251 ± 0.0028  0.9153 ± 0.0040
+Saved to ner_mbert_doc.csv
+
+======================================================================
+RUN SUMMARY
+======================================================================
+     config      lr  epochs  warmup_ratio  weight_decay  batch_size  max_seq_length  grad_accum_steps  gradient_clip   test_micro_f1     best_dev_f1 best_epoch_mean
+doc_4e5_bs2 0.00004       5           0.1          0.01           2            8192                 8              1 0.9147 ± 0.0042 0.9586 ± 0.0010            5.00

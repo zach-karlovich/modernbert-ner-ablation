@@ -5,7 +5,7 @@
     42,
     63
   ],
-  "git_commit": "a1ea08bb03cf275ec5d7502ca5f910d4a990b795",
+  "git_commit": "51783a7197a58059454975a7540d193103ee960c",
   "hyperparameters": {
     "name": "doc_4e5_bs2",
     "lr": 4e-05,
@@ -24,7 +24,7 @@
   "max_seq_length": 8192,
   "grad_accum_steps": 8,
   "script": "train_modernbert_doc_ner.py",
-  "run_description": "Document-context ModernBERT-base on CoNLL-2003; config doc_4e5_bs2. Writes modernbert_doc_ner_config_doc_4e5_bs2.{csv,json}.",
+  "run_description": "Document-context ModernBERT-base on CoNLL-2003; max 8192 subwords; sliding-window packing. Config doc_4e5_bs2: lr 4e-5, wd 0.01, 5 epochs, batch 2, grad_accum 8, warmup 0.1; default classifier dropout; no early stopping. Writes ner_mbert_doc.{csv,json}.",
   "sliding_window_token_overlap": 128,
   "dataset_train_rows": 14041,
   "dataset_dev_rows": 3250,

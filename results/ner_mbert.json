@@ -5,7 +5,7 @@
     42,
     63
   ],
-  "git_commit": "4c722aee4a576bcc84302079df21e79c46da98fb",
+  "git_commit": "51783a7197a58059454975a7540d193103ee960c",
   "hyperparameters": {
     "name": "B_dropout_ls",
     "lr": 5e-05,
@@ -25,5 +25,5 @@
   "model_id": "answerdotai/ModernBERT-base",
   "max_seq_length": 512,
   "script": "train_modernbert_ner.py",
-  "run_description": "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. Config B_dropout_ls: classifier_dropout 0.2, label_smoothing 0.1, wd 0.05, 8 epochs + early stopping. Writes ner_mbert_sent_v2_<config_name>.{csv,json}."
+  "run_description": "Sentence-level ModernBERT-base on CoNLL-2003; softmax head; no document context. Config B_dropout_ls: classifier_dropout 0.2, label_smoothing 0.1, wd 0.05, 8 epochs + early stopping. Writes ner_mbert.{csv,json}."
 }

@@ -1,0 +1,115 @@
+Using device: cuda
+Model: answerdotai/ModernBERT-base, max_seq_length=8192, grad_accum_steps=4
+CoNLL-2003 dataset checksums OK: /sfs/gpfs/tardis/home/ddf4me/modernbert-ner-ablation/data/conll2003
+Train: 14041 sentences
+Dev: 3250 sentences
+Test: 3453 sentences
+Train dataset: base_sentences=14041 rows=14041 multi_window_overflow_sources=0 window_mode=train overlap=128
+Dev dataset: base_sentences=3250 rows=3250 multi_window_overflow_sources=0 window_mode=eval overlap=128
+Test dataset: base_sentences=3453 rows=3453 multi_window_overflow_sources=0 window_mode=eval overlap=128
+
+############################################################
+CONFIG doc_5e5_bs4: lr=5e-05, crf_lr=0.00025, epochs=5, warmup=0.1, wd=0.01, bs=4
+############################################################
+
+==================================================
+[Config doc_5e5_bs4] Run 1/3 — Seed 21
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.130
+Val Loss: 0.033, Val F1: 0.9385
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.028, Val F1: 0.9489
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.027, Val F1: 0.9502
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.028, Val F1: 0.9498
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.030, Val F1: 0.9466
+[Config doc_5e5_bs4] Seed 21 best dev F1 0.9502 at epoch 3; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs4] Run 2/3 — Seed 42
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.090
+Val Loss: 0.030, Val F1: 0.9434
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.029, Val F1: 0.9450
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.035, Val F1: 0.9368
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.031, Val F1: 0.9480
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.031, Val F1: 0.9490
+[Config doc_5e5_bs4] Seed 42 best dev F1 0.9490 at epoch 5; restored best checkpoint for test evaluation.
+
+==================================================
+[Config doc_5e5_bs4] Run 3/3 — Seed 63
+==================================================
+
+Epoch 1/5
+------------------------------
+Train Loss: 0.102
+Val Loss: 0.033, Val F1: 0.9420
+
+Epoch 2/5
+------------------------------
+Train Loss: 0.003
+Val Loss: 0.032, Val F1: 0.9417
+
+Epoch 3/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.029, Val F1: 0.9478
+
+Epoch 4/5
+------------------------------
+Train Loss: 0.002
+Val Loss: 0.031, Val F1: 0.9479
+
+Epoch 5/5
+------------------------------
+Train Loss: 0.001
+Val Loss: 0.029, Val F1: 0.9488
+[Config doc_5e5_bs4] Seed 63 best dev F1 0.9488 at epoch 5; restored best checkpoint for test evaluation.
+
+=== Config doc_5e5_bs4 Test Results (seeds [21, 42, 63]) — mean ± std ===
+              support        precision           recall         f1-score
+                                                                        
+LOC              1668  0.9301 ± 0.0064  0.9003 ± 0.0033  0.9149 ± 0.0017
+MISC              702  0.7633 ± 0.0086  0.7939 ± 0.0095  0.7782 ± 0.0007
+ORG              1661  0.8488 ± 0.0071  0.9029 ± 0.0123  0.8750 ± 0.0095
+PER              1617  0.9662 ± 0.0038  0.9705 ± 0.0011  0.9683 ± 0.0021
+micro avg        5648  0.8940 ± 0.0041  0.9079 ± 0.0029  0.9009 ± 0.0035
+macro avg        5648  0.8771 ± 0.0041  0.8919 ± 0.0016  0.8841 ± 0.0028
+weighted avg     5648  0.8958 ± 0.0041  0.9079 ± 0.0029  0.9015 ± 0.0034
+Saved to ner_mbert_doc_crf.csv
